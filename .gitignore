@@ -1,0 +1,8 @@
+Directory.Build.props
+
+*.sln
+*.slnx
+bin/
+obj/
+Debug/
+Release/
