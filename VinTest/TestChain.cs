@@ -56,6 +56,23 @@ public class TestChain : IEnumerable<TestStep>
         return this;
     }
 
+    /// <summary>
+    /// Polls <paramref name="breakWhen"/> every <paramref name="pollIntervalMs"/> milliseconds
+    /// until it returns <c>true</c> or <paramref name="maxMs"/> have elapsed.
+    /// </summary>
+    public TestChain AssertEventually(
+        string name,
+        int maxMs,
+        Func<bool> breakWhen,
+        int pollIntervalMs = 500,
+        [CallerFilePath] string file = "",
+        [CallerLineNumber] int line = 0
+    )
+    {
+        _steps.Add(new TestStep.PollStep(name, maxMs, breakWhen, pollIntervalMs, $"{file}:{line}"));
+        return this;
+    }
+
     public IEnumerator<TestStep> GetEnumerator() => _steps.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -70,4 +87,12 @@ public abstract record TestStep
     public sealed record DoStep(Action Action) : TestStep;
 
     public sealed record AssertStep(string Name, Func<bool> Condition, string Location) : TestStep;
+
+    public sealed record PollStep(
+        string Name,
+        int MaxMs,
+        Func<bool> BreakWhen,
+        int PollIntervalMs,
+        string Location
+    ) : TestStep;
 }

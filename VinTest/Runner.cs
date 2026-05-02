@@ -133,6 +133,10 @@ public class Runner(ICoreServerAPI sapi)
                     DelayThen(conditionalWait.Ms, RunFromCurrentStep);
                     return;
 
+                case TestStep.PollStep pollStep:
+                    PollUntil(pollStep, Stopwatch.GetTimestamp());
+                    return;
+
                 case TestStep.DoStep doStep:
                     try
                     {
@@ -186,6 +190,60 @@ public class Runner(ICoreServerAPI sapi)
 
         // Loop exhausted - test method passed
         FinishCase(failedUnexpectedly: false, errorMessage: null);
+    }
+
+    private void PollUntil(TestStep.PollStep step, long startedAt)
+    {
+        bool passed = false;
+        try
+        {
+            passed = step.BreakWhen();
+        }
+        catch (Exception e)
+        {
+            currentAssertions.Add(
+                new AssertionResult
+                {
+                    Name = step.Name,
+                    Passed = false,
+                    Location = step.Location,
+                    ErrorMessage = e.Message,
+                }
+            );
+            FinishCase(failedUnexpectedly: false, errorMessage: null);
+            return;
+        }
+
+        if (passed)
+        {
+            currentAssertions.Add(
+                new AssertionResult
+                {
+                    Name = step.Name,
+                    Passed = true,
+                    Location = step.Location,
+                }
+            );
+            RunFromCurrentStep();
+            return;
+        }
+
+        long elapsedMs = (long)Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        if (elapsedMs + step.PollIntervalMs >= step.MaxMs)
+        {
+            currentAssertions.Add(
+                new AssertionResult
+                {
+                    Name = step.Name,
+                    Passed = false,
+                    Location = step.Location,
+                }
+            );
+            FinishCase(failedUnexpectedly: false, errorMessage: null);
+            return;
+        }
+
+        DelayThen(step.PollIntervalMs, () => PollUntil(step, startedAt));
     }
 
     private void FinishCase(bool failedUnexpectedly, string? errorMessage)
