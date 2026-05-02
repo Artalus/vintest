@@ -27,8 +27,21 @@ public class Runner(ICoreServerAPI sapi)
     /// </summary>
     /// <param name="suites">Objects with methods annotated with [GameTest] attribute, returning IEnumerable<TestStep></param>
     /// <param name="startupDelayMs">Milliseconds to wait before running the first test.</param>
-    public void Start(object[] suites, int startupDelayMs)
+    /// <param name="testCaseFilter">
+    /// Case-insensitive substring to filter <c>SuiteName.CaseName</c>s by.
+    /// When non-empty, only matching tests are enqueued; all others are skipped.
+    /// </param>
+    public void Start(object[] suites, int startupDelayMs, string? testCaseFilter = null)
     {
+        var filters =
+            testCaseFilter?.Split(
+                ',',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+            ) ?? [];
+        bool hasFilter = filters.Length > 0;
+        if (hasFilter)
+            sapi.Logger.Notification($"[VinTest] Filter active: '{testCaseFilter}'");
+
         foreach (var suite in suites)
         {
             string suiteName = suite.GetType().Name;
@@ -57,6 +70,16 @@ public class Runner(ICoreServerAPI sapi)
                             + $"but returns {method.ReturnType.Name}."
                     );
 
+                string fullName = $"{suiteName}.{method.Name}";
+                if (
+                    hasFilter
+                    && !filters.Any(f => fullName.Contains(f, StringComparison.OrdinalIgnoreCase))
+                )
+                {
+                    sapi.Logger.Notification($"[VinTest] Skipping '{fullName}' (filtered out)");
+                    continue;
+                }
+
                 var attr = method.GetCustomAttribute<GameTestAttribute>()!;
                 var enumerator = (
                     (IEnumerable<TestStep>)method.Invoke(suite, null)!
@@ -64,6 +87,12 @@ public class Runner(ICoreServerAPI sapi)
                 caseQueue.Enqueue(new CaseEntry(suiteName, method.Name, enumerator));
             }
         }
+
+        if (caseQueue.Count == 0)
+            throw new InvalidOperationException(
+                $"No test cases matched filter '{testCaseFilter}'. "
+                    + "Check the filter string against your [GameTest] method names."
+            );
 
         if (startupDelayMs > 0)
         {

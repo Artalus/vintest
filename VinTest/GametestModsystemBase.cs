@@ -43,11 +43,12 @@ public abstract class GametestModsystemBase : ModSystem
             return;
         _started = true;
 
+        var cfg = SApi.LoadModConfig<VinTestConfig>("vintestconfig.json");
         var runner = new Runner(SApi);
 
         try
         {
-            runner.Start(CreateSuites(player), StartupDelayMs);
+            runner.Start(CreateSuites(player), StartupDelayMs, cfg?.TestCaseFilter);
         }
         catch (Exception e)
         {
@@ -57,4 +58,16 @@ public abstract class GametestModsystemBase : ModSystem
             throw;
         }
     }
+}
+
+/// <summary>
+/// Optional config read from JSON file under <c>ModConfig/</c>.
+/// </summary>
+public class VinTestConfig
+{
+    /// <summary>
+    /// Case-insensitive substring to filter <c>SuiteName.CaseName</c>s by.
+    /// When non-empty, only matching tests are enqueued; all others are skipped.
+    /// </summary>
+    public string? TestCaseFilter { get; set; }
 }
