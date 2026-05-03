@@ -53,6 +53,12 @@ public abstract class ContextBase : FrostingContext
     /// </summary>
     public bool IgnoreLogErrors { get; }
 
+    /// [ARG] Case-insensitive substring filter applied to <c>SuiteName.CaseName</c>.
+    /// Leave empty to run all tests.
+    /// When non-empty, only matching tests are executed.
+    /// </summary>
+    public string TestCaseFilter { get; }
+
     /// <summary>
     /// Directory under the VS data path where VinTest will store its files.
     /// Shared with VinTest.Runner.
@@ -82,5 +88,6 @@ public abstract class ContextBase : FrostingContext
         TestRunTimeoutSeconds = context.Argument("test-timeout", 300);
         BuildConfiguration = context.Argument("configuration", "Release");
         IgnoreLogErrors = context.Argument("ignore-log-errors", false);
+        TestCaseFilter = context.Argument("test-filter", "");
     }
 }

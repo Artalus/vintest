@@ -142,6 +142,7 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
         var vsExe = Path.Combine(context.VsPath, "VintageStory.exe");
 
         Cleanup(context);
+        WriteVintestConfig(context);
         Prepare(context);
         Build(context);
         var proc = LaunchVintageStory(
@@ -191,6 +192,17 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
         var resultsPath = context.TestResultsPath;
         if (File.Exists(resultsPath))
             File.Delete(resultsPath);
+    }
+
+    private static void WriteVintestConfig(TContext context)
+    {
+        var configDir = Path.Combine(context.DataPath, "ModConfig");
+        Directory.CreateDirectory(configDir);
+        var filter = context.TestCaseFilter;
+        // dump even empty config, so old one does not interfere when no filter is provided
+        object config = string.IsNullOrEmpty(filter) ? new { } : new { TestCaseFilter = filter };
+        var json = JsonConvert.SerializeObject(config);
+        File.WriteAllText(Path.Combine(configDir, "vintestconfig.json"), json);
     }
 
     private static Process LaunchVintageStory(
