@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
 using Cake.Common.Diagnostics;
 using Cake.Common.IO;
 using Cake.Common.Tools.DotNet;
@@ -157,6 +156,13 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
         PrintResults(context, result, badLines, context.IgnoreLogErrors);
     }
 
+    public override void Finally(TContext context)
+    {
+        // cleanup file upon cake exit
+        if (File.Exists(context.PidFilePath))
+            File.Delete(context.PidFilePath);
+    }
+
     // --- Implementation (in call order) ---
 
     private void Cleanup(TContext context)
@@ -189,9 +195,9 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
                 File.Delete(shm);
         }
 
-        var resultsPath = context.TestResultsPath;
-        if (File.Exists(resultsPath))
-            File.Delete(resultsPath);
+        foreach (var file in new[] { context.TestResultsPath, context.PidFilePath })
+            if (File.Exists(file))
+                File.Delete(file);
     }
 
     private static void WriteVintestConfig(TContext context)
@@ -238,9 +244,14 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
         var proc = Process.Start(psi)!;
 
         // if something goes horribly wrong with VS, it usually does so immediately
-        Thread.Sleep(2000);
+        proc.WaitForExit(2000);
         if (proc.HasExited)
             throw new CakeException($"VS exited immediately with code {proc.ExitCode}");
+
+        // Write PID so the VS Code extension can attach a debugger.
+        Directory.CreateDirectory(Path.GetDirectoryName(context.PidFilePath)!);
+        File.WriteAllText(context.PidFilePath, proc.Id.ToString());
+
         return proc;
     }
 
@@ -262,11 +273,9 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
 
     private static TestRunInfo WaitForResults(Process proc, string resultsPath, int timeoutSeconds)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
-        while (!File.Exists(resultsPath) && DateTime.UtcNow < deadline && !proc.HasExited)
-            Thread.Sleep(1000);
-
-        if (!proc.HasExited && DateTime.UtcNow >= deadline)
+        // timeoutSeconds == 0 means no deadline (e.g. when a debugger is attached)
+        proc.WaitForExit(timeoutSeconds > 0 ? timeoutSeconds * 1000 : -1);
+        if (!proc.HasExited)
         {
             proc.Kill();
             proc.WaitForExit(1000);
@@ -293,7 +302,16 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
 
         foreach (var logFile in Directory.GetFiles(logsDir, "*.log"))
         {
-            foreach (var line in File.ReadLines(logFile))
+            // cannot simply File.ReadLines() when running from vscode extension
+            using var fs = new FileStream(
+                logFile,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite
+            );
+            using var reader = new StreamReader(fs);
+            string? line;
+            while ((line = reader.ReadLine()) != null)
             {
                 var ts = TryParseLogTimestamp(line) ?? DateTime.MinValue;
 

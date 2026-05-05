@@ -70,6 +70,11 @@ public abstract class ContextBase : FrostingContext
     /// </summary>
     public string TestResultsPath => Path.Combine(DataPath, TestResultsDirName, "results.json");
 
+    /// <summary>
+    /// Path to the PID file written by cake task once VintageStory is launched.
+    /// </summary>
+    public string PidFilePath => Path.Combine(DataPath, TestResultsDirName, "vs.pid");
+
     protected ContextBase(ICakeContext context)
         : base(context)
     {
@@ -89,5 +94,9 @@ public abstract class ContextBase : FrostingContext
         BuildConfiguration = context.Argument("configuration", "Release");
         IgnoreLogErrors = context.Argument("ignore-log-errors", false);
         TestCaseFilter = context.Argument("test-filter", "");
+
+        // delete as soon as possible to minimize chance of extension reading stale PID
+        if (File.Exists(PidFilePath))
+            File.Delete(PidFilePath);
     }
 }
