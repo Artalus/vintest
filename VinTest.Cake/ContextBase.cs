@@ -56,6 +56,12 @@ public abstract class ContextBase : FrostingContext
     /// </summary>
     public bool IgnoreLogErrors { get; }
 
+    /// <summary>
+    /// [ARG] When set, launches VS without running tests automatically.
+    /// Cake will wait for VS to exit without checking for test results.
+    /// </summary>
+    public bool ManualMode { get; }
+
     /// [ARG] Case-insensitive substring filter applied to <c>SuiteName.CaseName</c>.
     /// Leave empty to run all tests.
     /// When non-empty, only matching tests are executed.
@@ -109,6 +115,7 @@ public abstract class ContextBase : FrostingContext
         TestRunTimeoutSeconds = context.Argument("test-timeout", 300);
         BuildConfiguration = context.Argument("configuration", "Release");
         IgnoreLogErrors = context.Argument("ignore-log-errors", false);
+        ManualMode = context.Argument("manual-mode", false);
         TestCaseFilter = context.Argument("test-filter", "");
 
         // delete as soon as possible to minimize chance of extension reading stale PID

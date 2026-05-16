@@ -150,6 +150,12 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
             GetModBinaryPaths(context),
             GetAssetsPaths(context)
         );
+        if (context.ManualMode)
+        {
+            context.Information("Manual mode: waiting for VintageStory to exit...");
+            proc.WaitForExit();
+            return;
+        }
         var result = WaitForResults(proc, context.TestResultsPath, context.TestRunTimeoutSeconds);
         var logsDir = Path.Combine(context.DataPath, "Logs");
         var badLines = ScanLogs(logsDir, context.Log);
@@ -204,9 +210,12 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
     {
         var configDir = Path.Combine(context.DataPath, "ModConfig");
         Directory.CreateDirectory(configDir);
-        var filter = context.TestCaseFilter;
         // dump even empty config, so old one does not interfere when no filter is provided
-        object config = string.IsNullOrEmpty(filter) ? new { } : new { TestCaseFilter = filter };
+        var config = new Dictionary<string, object>();
+        if (context.ManualMode)
+            config["ManualMode"] = true;
+        if (!string.IsNullOrEmpty(context.TestCaseFilter))
+            config["TestCaseFilter"] = context.TestCaseFilter;
         var json = JsonConvert.SerializeObject(config);
         File.WriteAllText(Path.Combine(configDir, "vintestconfig.json"), json);
     }
