@@ -6,3 +6,7 @@ bin/
 obj/
 Debug/
 Release/
+
+node_modules/
+out/
+*.vsix

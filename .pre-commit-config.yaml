@@ -16,6 +16,12 @@ repos:
         language: system
         types:
           - c#
+      - id: prettier
+        name: Run Prettier on TS files
+        entry: npx prettier --write
+        language: system
+        types:
+          - ts
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.37.1

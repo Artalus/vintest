@@ -1,0 +1,70 @@
+{
+  "name": "vintest-adapter",
+  "displayName": "VinTest Testing Adapter",
+  "description": "Discovers and runs VinTest game tests via the VS Code Testing panel",
+  "version": "0.0.0",
+  "publisher": "Artalus",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Artalus/vintest-vscode"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Testing"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.cs"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "VinTest",
+      "properties": {
+        "vintest.vsPath": {
+          "type": "string",
+          "description": "Absolute path to the VintageStory installation directory to be passed to --vs-path Cake argument. Falls back to the VINTAGE_STORY environment variable, then to a <VINTAGE_STORY> property in any Directory.Build.props found in the workspace."
+        },
+        "vintest.cakeBuildProject": {
+          "type": "string",
+          "description": "Relative workspace path to the Cake .csproj (e.g. 'ZZCakeBuild/CakeBuild.csproj'). Auto-detected if empty."
+        },
+        "vintest.configuration": {
+          "type": "string",
+          "default": "Release",
+          "description": "Dotnet build configuration. Mirrors the --configuration Cake argument. IGNORED when debugging tests."
+        },
+        "vintest.ignoreLogErrors": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, captured log lines matching error patterns do *NOT* fail the build. Mirrors the --ignore-log-errors Cake argument."
+        },
+        "vintest.cakeTarget": {
+          "type": "string",
+          "default": "RunGameTests",
+          "description": "Name of the Cake target that drives gametests to invoke via --target."
+        },
+        "vintest.dataPath": {
+          "type": "string",
+          "description": "Relative workspace path to the VintageStory data directory (the folder containing Saves/, Logs/, TestResults/, etc.). Auto-detected as 'gamedata/' next to the Cake project if empty."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "format": "prettier . --write",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/vscode": "^1.88.0",
+    "@vscode/vsce": "^3.9.1",
+    "prettier": "3.8.3",
+    "typescript": "^5.4.0"
+  }
+}
