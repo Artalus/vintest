@@ -144,7 +144,12 @@ public class Runner(ICoreServerAPI sapi)
                     }
                     catch (Exception e)
                     {
-                        FinishCase(failedUnexpectedly: true, errorMessage: e.ToString());
+                        var (msg, loc) = AnalyzeException(e);
+                        FinishCase(
+                            failedUnexpectedly: true,
+                            exceptionMessage: msg,
+                            exceptionLocation: loc
+                        );
                         return;
                     }
                     break;
@@ -163,22 +168,30 @@ public class Runner(ICoreServerAPI sapi)
                         );
                         if (!passed)
                         {
-                            FinishCase(failedUnexpectedly: false, errorMessage: null);
+                            FinishCase(
+                                failedUnexpectedly: false,
+                                exceptionMessage: null,
+                                exceptionLocation: null
+                            );
                             return;
                         }
                     }
                     catch (Exception e)
                     {
+                        var (msg, loc) = AnalyzeException(e);
                         currentAssertions.Add(
                             new AssertionResult
                             {
                                 Name = assertStep.Name,
                                 Passed = false,
-                                Location = assertStep.Location,
-                                ErrorMessage = e.Message,
+                                Location = loc ?? assertStep.Location,
                             }
                         );
-                        FinishCase(failedUnexpectedly: false, errorMessage: null);
+                        FinishCase(
+                            failedUnexpectedly: true,
+                            exceptionMessage: msg,
+                            exceptionLocation: loc
+                        );
                         return;
                     }
                     break;
@@ -189,7 +202,7 @@ public class Runner(ICoreServerAPI sapi)
         }
 
         // Loop exhausted - test method passed
-        FinishCase(failedUnexpectedly: false, errorMessage: null);
+        FinishCase(failedUnexpectedly: false, exceptionMessage: null, exceptionLocation: null);
     }
 
     private void PollUntil(TestStep.PollStep step, long startedAt)
@@ -201,16 +214,16 @@ public class Runner(ICoreServerAPI sapi)
         }
         catch (Exception e)
         {
+            var (msg, loc) = AnalyzeException(e);
             currentAssertions.Add(
                 new AssertionResult
                 {
                     Name = step.Name,
                     Passed = false,
-                    Location = step.Location,
-                    ErrorMessage = e.Message,
+                    Location = loc ?? step.Location,
                 }
             );
-            FinishCase(failedUnexpectedly: false, errorMessage: null);
+            FinishCase(failedUnexpectedly: true, exceptionMessage: msg, exceptionLocation: loc);
             return;
         }
 
@@ -239,14 +252,18 @@ public class Runner(ICoreServerAPI sapi)
                     Location = step.Location,
                 }
             );
-            FinishCase(failedUnexpectedly: false, errorMessage: null);
+            FinishCase(failedUnexpectedly: false, exceptionMessage: null, exceptionLocation: null);
             return;
         }
 
         DelayThen(step.PollIntervalMs, () => PollUntil(step, startedAt));
     }
 
-    private void FinishCase(bool failedUnexpectedly, string? errorMessage)
+    private void FinishCase(
+        bool failedUnexpectedly,
+        string? exceptionMessage,
+        string? exceptionLocation
+    )
     {
         caseTimer.Stop();
         bool assertionsPassed = currentAssertions.All(a => a.Passed);
@@ -257,8 +274,9 @@ public class Runner(ICoreServerAPI sapi)
             Name = currentCase!.CaseName,
             Passed = passed,
             DurationMs = caseTimer.Elapsed.TotalMilliseconds,
-            ErrorMessage = errorMessage,
             Assertions = [.. currentAssertions],
+            ExceptionLocation = exceptionLocation,
+            ExceptionMessage = exceptionMessage,
         };
 
         currentSuiteResult!.TestCases.Add(result);
@@ -277,6 +295,17 @@ public class Runner(ICoreServerAPI sapi)
             return;
         }
         WriteResultsAndExit();
+    }
+
+    /// <summary>
+    /// Filters out VinTest frames from an exception, formats a user-friendly message,
+    /// and extracts the last user code location as "path:line".
+    /// Inner exceptions are included using the standard ---> nesting format.
+    /// </summary>
+    private static (string Message, string? Location) AnalyzeException(Exception e)
+    {
+        string? location = null;
+        return (BuildExceptionMessage(e, ref location), location);
     }
 
     private void WriteResultsAndExit()
@@ -304,6 +333,51 @@ public class Runner(ICoreServerAPI sapi)
 
         sapi.Logger.Notification($"[VinTest] Test run {(testRun.Passed ? "PASSED" : "FAILED")}");
         Environment.Exit(testRun.Passed ? 0 : 1);
+    }
+
+    private static string BuildExceptionMessage(Exception e, ref string? location)
+    {
+        var st = new StackTrace(e, fNeedFileInfo: true);
+        var frameLines = new List<string>();
+
+        foreach (var frame in st.GetFrames())
+        {
+            var method = frame.GetMethod();
+            if (method == null)
+                continue;
+            if ((method.DeclaringType?.Namespace ?? "").StartsWith("VinTest"))
+                break;
+
+            var file = frame.GetFileName();
+            var lineNo = frame.GetFileLineNumber();
+            if (!string.IsNullOrEmpty(file) && lineNo != 0)
+                location = $"{file}:{lineNo}";
+
+            var paramList = string.Join(
+                ", ",
+                method.GetParameters().Select(p => p.ParameterType.Name)
+            );
+            var sig = $"   at {method.DeclaringType?.FullName ?? "?"}.{method.Name}({paramList})";
+            frameLines.Add(
+                !string.IsNullOrEmpty(file) && lineNo != 0 ? $"{sig} in {file}:line {lineNo}" : sig
+            );
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"{e.GetType().FullName}: {e.Message}");
+
+        if (e.InnerException != null)
+        {
+            string? innerLocation = null;
+            sb.Append("\n ---> ");
+            sb.Append(BuildExceptionMessage(e.InnerException, ref innerLocation));
+            sb.Append("\n --- End of inner exception stack trace ---");
+        }
+
+        if (frameLines.Count > 0)
+            sb.Append("\n").Append(string.Join("\n", frameLines));
+
+        return sb.ToString();
     }
 
     private void DelayThen(int ms, Action callback)
@@ -349,8 +423,9 @@ public class TestCaseResult
     public required string Name { get; set; }
     public bool Passed { get; set; }
     public double DurationMs { get; set; }
-    public string? ErrorMessage { get; set; }
     public List<AssertionResult> Assertions { get; set; } = [];
+    public string? ExceptionLocation { get; set; }
+    public string? ExceptionMessage { get; set; }
 }
 
 public class AssertionResult
@@ -358,5 +433,4 @@ public class AssertionResult
     public string Name { get; set; } = "";
     public bool Passed { get; set; }
     public string? Location { get; set; }
-    public string? ErrorMessage { get; set; }
 }
