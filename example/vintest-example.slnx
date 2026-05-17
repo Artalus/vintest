@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="./MyMod/MyMod.csproj" />
+  <Project Path="./MyMod.unittests/MyMod.unittests.csproj" />
+  <Project Path="./MyMod.gametests/MyMod.gametests.csproj" />
+  <Project Path="./CakeBuild/CakeBuild.csproj" />
+</Solution>

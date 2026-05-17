@@ -1,0 +1,11 @@
+# regular output directories for C#
+bin/
+obj/
+
+# default name for local directory with VS data
+gamedata/
+
+# these will affect building the project, and will usually contain data specific to your PC
+# that makes no sense for other contributors
+Directory.Build.props
+Directory.Build.targets

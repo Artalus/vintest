@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\Mods\mod</OutputPath>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Your main mod does not need to depend on VinTest at all -->
+
+  <!-- Mods need VS DLLs to be built and run -->
+  <ItemGroup>
+    <Reference Include="VintagestoryAPI">
+      <HintPath>$(VINTAGE_STORY)/VintagestoryAPI.dll</HintPath>
+      <!--
+      <Private> controls whether the referenced DLL should be copied to the output directory or not.
+      Mods are loaded by VS itself; they do not need its DLLs to be copied to the output, and those
+      DLLs are not packaged together with the mod in its .zip file.
+      -->
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- We will point VS to our output directory, and so it will expect modinfo there -->
+  <ItemGroup>
+    <Content Include="modinfo.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,40 @@
+<!--
+VinTest can coexist with regular unit tests!
+If you can test something without running the entire game - by all means do so, since properly
+implemented unit tests will run faster than gametests.
+-->
+
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- MSTest is not a hard requirement; you are free to use whatever framework suits you. -->
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.0.2" />
+  </ItemGroup>
+
+  <!-- Unit tests are an executable, and need to be explicitly linked with your mods library to test it. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MyMod\MyMod.csproj" />
+  </ItemGroup>
+
+  <!--
+  Raw <Reference>s (used by the main mod project) are never transitive.
+  All the consuming projects - including tests - have to redefine the same references as their
+  <ProjectReference>d direct dependencies do.
+  Even when not using symbols from <Reference>d assembly directly in their code.
+  -->
+  <ItemGroup>
+    <Reference Include="VintagestoryAPI">
+      <HintPath>$(VINTAGE_STORY)/VintagestoryAPI.dll</HintPath>
+      <!--
+      <Private> controls whether the referenced DLL should be copied to the output directory or not.
+      Unit tests are standalone executables, and so they *DO* need VS assemblies copied nearby,
+      in order to use symbols from there.
+      -->
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

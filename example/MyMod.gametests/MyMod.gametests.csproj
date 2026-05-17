@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\Mods\mod</OutputPath>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Just like with any regular mod, gametests need VS DLLs to be built and run -->
+  <ItemGroup>
+    <Reference Include="VintagestoryAPI">
+      <HintPath>$(VINTAGE_STORY)/VintagestoryAPI.dll</HintPath>
+      <!--
+      <Private> controls whether the referenced DLL should be copied to the output directory or not.
+      Just like with any regular mod, gametests are loaded by VS itself and do not need its DLLs
+      to be copied to the output.
+      -->
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+    Usually you'd want to always get a pinned VinTest version from NuGet.
+    But you can use a local copy via Directory.Build.targets file.
+    -->
+    <PackageReference Include="VinTest" Version="0.0.0" />
+
+    <!-- Gametests need the main mod DLLs to be built - but they should not be copied, since
+    the mod will already be loaded by VS itself. -->
+    <ProjectReference Include="../MyMod/MyMod.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- We will point VS to our output directory, and so it will expect modinfo there -->
+  <ItemGroup>
+    <Content Include="modinfo.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

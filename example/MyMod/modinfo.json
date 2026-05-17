@@ -1,0 +1,10 @@
+{
+    "modid": "mymod",
+    "name": "A Mod",
+    "description": "An example mod that will be tested with VinTest",
+    "version": "0.0.0",
+    "type": "code",
+    "authors": [
+        "example"
+    ]
+}

@@ -1,0 +1,30 @@
+<Project>
+  <!--
+  With Directory.Build.targets file, you can customize properties of the targets in your project
+  once they have been defined.
+  See https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory
+
+  For example, for local development we may redefine VinTest to be built from a local source tree
+  instead of downloading it from NuGet.
+  Since is a temporary measure, this file should be put under `.gitignore`.
+  -->
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'MyMod.gametests'">
+    <PackageReference Remove="VinTest" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\VinTest\VinTest.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'CakeBuild'">
+    <PackageReference Remove="VinTest.Cake" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\VinTest.Cake\VinTest.Cake.csproj" />
+  </ItemGroup>
+
+  <!--
+  Alternatively, if you want to use a custom-built VinTest.nupkg from some local directory, you will need
+  1. the Restore property in .props file
+  2. the PackageReference Update in .targets file:
+  <ItemGroup>
+    <PackageReference Update="VinTest" Version="1.2.3-patch1" />
+  </ItemGroup>
+  -->
+</Project>

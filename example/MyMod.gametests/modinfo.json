@@ -1,0 +1,13 @@
+{
+    "modid": "mymodtests",
+    "name": "Tests for A Mod",
+    "description": "gametests *are* a mod, and so need their own modinfo",
+    "version": "0.0.0",
+    "type": "code",
+    "authors": [
+        "example"
+    ],
+    "dependencies": {
+        "mymod": ""
+    }
+}

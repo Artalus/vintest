@@ -1,0 +1,24 @@
+<Project>
+  <!--
+  With Directory.Build.props file, you can setup custom property values without hardcoding them
+  in the project files.
+  See https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory
+
+  For example, we may want to define VINTAGE_STORY property here for the entire project,
+  to avoid setting a global environment variable.
+  Since local paths are used (and will be different for every user), this file should be put
+  under `.gitignore`.
+  -->
+  <PropertyGroup>
+    <VINTAGE_STORY>e:\games\vintagestorymanaged\versions\1.21.7</VINTAGE_STORY>
+  </PropertyGroup>
+
+  <!--
+  If you want to use a custom-built VinTest.nupkg from some local directory, you will need
+  1. the Restore property in .props file:
+  <PropertyGroup>
+    <RestoreAdditionalProjectSources>R:\custom-nupkg\</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+  2. the PackageReference Update in .targets file
+  -->
+</Project>
