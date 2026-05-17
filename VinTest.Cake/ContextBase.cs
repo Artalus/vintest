@@ -1,6 +1,9 @@
 using System.IO;
+using System.Linq;
+using System.Xml.Linq;
 using Cake.Common;
 using Cake.Core;
+using Cake.Core.Diagnostics;
 using Cake.Frosting;
 
 namespace VinTest.Cake;
@@ -80,10 +83,23 @@ public abstract class ContextBase : FrostingContext
     {
         var vspathCandidate = context.Argument("vs-path", "");
         if (string.IsNullOrEmpty(vspathCandidate))
-            vspathCandidate = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "";
+        {
+            Log.Information("* --vs-path argument not provided; trying .props");
+            vspathCandidate = ReadVsPathFromProps();
+        }
+        if (string.IsNullOrEmpty(vspathCandidate))
+        {
+            if (vspathCandidate == null)
+                Log.Information("* Directory.Build.props not availabble; trying env");
+            else
+                Log.Information("* Directory.Build.props has no valid path; trying env");
+            vspathCandidate = ReadVsPathFromEnv();
+        }
         if (string.IsNullOrEmpty(vspathCandidate))
             throw new CakeException(
-                "Vintage Story path not provided. Set --vs-path or VINTAGE_STORY env var"
+                "Vintage Story path not provided."
+                    + " Use --vs-path, or add <VINTAGE_STORY> property to Directory.Build.props,"
+                    + " or set VINTAGE_STORY environment variable."
             );
         VsPath = Path.GetFullPath(vspathCandidate);
         if (!File.Exists(Path.Combine(VsPath, "VintageStory.exe")))
@@ -98,5 +114,32 @@ public abstract class ContextBase : FrostingContext
         // delete as soon as possible to minimize chance of extension reading stale PID
         if (File.Exists(PidFilePath))
             File.Delete(PidFilePath);
+    }
+
+    private string? ReadVsPathFromProps()
+    {
+        // Cwd = "this project dir", even if `dotnet run --project cake` happens at workspace root.
+        // Since cake project lives in subdirectory, props file should be one level up from cwd.
+        var propsFile = Path.GetFullPath(
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "Directory.Build.props")
+        );
+        if (!File.Exists(propsFile))
+            return null;
+        var doc = XDocument.Load(propsFile);
+        var value = doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "VINTAGE_STORY")
+            ?.Value.Trim();
+        if (value == null)
+            return "";
+        Log.Information($"* Got '{value}' from {propsFile}");
+        return value;
+    }
+
+    private string ReadVsPathFromEnv()
+    {
+        var value = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "";
+        if (!string.IsNullOrEmpty(value))
+            Log.Information($"* Got '{value}' from VINTAGE_STORY env var");
+        return value;
     }
 }
