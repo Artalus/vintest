@@ -23,32 +23,47 @@
     "configuration": {
       "title": "VinTest",
       "properties": {
-        "vintest.vsPath": {
+        "vintest.projects": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Explicit list of VinTest projects to use. When empty, all Cake projects in the workspace are auto-detected. Each entry must specify `cakeBuildProject`; `dataPath` is optional and defaults to `gamedata/` next to the Cake project.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cakeBuildProject": {
+                "type": "string",
+                "description": "Absolute or workspace-relative path to the Cake .csproj (e.g. 'MyMod/ZZCakeBuild/CakeBuild.csproj')."
+              },
+              "cake.dataPath": {
+                "type": "string",
+                "default": null,
+                "description": "Absolute or workspace-relative path to the VintageStory data directory (Saves/, Logs/, TestResults/). Defaults to 'gamedata/' next to the Cake project."
+              },
+              "cake.target": {
+                "type": "string",
+                "default": null,
+                "description": "Cake target to invoke for this project. Overrides the global vintest.cakeTarget when set."
+              }
+            },
+            "required": ["cakeBuildProject"],
+            "additionalProperties": false
+          }
+        },
+        "vintest.cake.vsPath": {
           "type": "string",
+          "default": null,
           "description": "Absolute path to the VintageStory installation directory to be passed to --vs-path Cake argument. Falls back to the VINTAGE_STORY environment variable, then to a <VINTAGE_STORY> property in any Directory.Build.props found in the workspace."
         },
-        "vintest.cakeBuildProject": {
-          "type": "string",
-          "description": "Relative workspace path to the Cake .csproj (e.g. 'ZZCakeBuild/CakeBuild.csproj'). Auto-detected if empty."
-        },
-        "vintest.configuration": {
+
+        "vintest.cake.configuration": {
           "type": "string",
           "default": "Release",
           "description": "Dotnet build configuration. Mirrors the --configuration Cake argument. IGNORED when debugging tests."
         },
-        "vintest.ignoreLogErrors": {
+        "vintest.cake.ignoreLogErrors": {
           "type": "boolean",
           "default": false,
           "description": "When true, captured log lines matching error patterns do *NOT* fail the build. Mirrors the --ignore-log-errors Cake argument."
-        },
-        "vintest.cakeTarget": {
-          "type": "string",
-          "default": "RunGameTests",
-          "description": "Name of the Cake target that drives gametests to invoke via --target."
-        },
-        "vintest.dataPath": {
-          "type": "string",
-          "description": "Relative workspace path to the VintageStory data directory (the folder containing Saves/, Logs/, TestResults/, etc.). Auto-detected as 'gamedata/' next to the Cake project if empty."
         },
         "vintest.waitForOtherTests": {
           "type": "number",

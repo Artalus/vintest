@@ -30,6 +30,7 @@ export async function parseResults(
   resultsPath: string,
   controller: vscode.TestController,
   run: vscode.TestRun,
+  projectWorkspaceRoot: string,
 ): Promise<void> {
   const bytes = await vscode.workspace.fs.readFile(
     vscode.Uri.file(resultsPath),
@@ -47,7 +48,12 @@ export async function parseResults(
 
   for (const suite of data.Suites) {
     for (const tc of suite.TestCases) {
-      const item = findTestItem(controller, suite.SuiteName, tc.Name);
+      const item = findTestItem(
+        controller,
+        projectWorkspaceRoot,
+        suite.SuiteName,
+        tc.Name,
+      );
       if (!item) continue;
 
       if (tc.Passed) {
@@ -90,10 +96,13 @@ function buildFailMessage(tc: TestCaseInfo): vscode.TestMessage {
 
 function findTestItem(
   controller: vscode.TestController,
+  projectWorkspaceRoot: string,
   suiteName: string,
   caseName: string,
 ): vscode.TestItem | undefined {
-  const suiteItem = controller.items.get(suiteName);
+  const projectItem = controller.items.get(projectWorkspaceRoot);
+  if (!projectItem) return undefined;
+  const suiteItem = projectItem.children.get(suiteName);
   if (!suiteItem) return undefined;
   return suiteItem.children.get(`${suiteName}.${caseName}`);
 }

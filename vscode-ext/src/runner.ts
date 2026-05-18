@@ -5,41 +5,20 @@ import * as path from "path";
 import { PassThrough } from "stream";
 import {
   resolveExtensionConfig,
-  getWaitForOtherTests,
-  type RunConfig,
+  type WorkspaceConfig,
+  type ProjectConfig,
 } from "./config";
 import { parseResults } from "./resultsParser";
+import {
+  waitOrCancel,
+  waitForBuildTasks,
+  shutdownBuildServers,
+} from "./taskGuard";
 
 // Serializes all dotnet invocations so at most one runs at a time.
 // Prevents build-output conflicts with concurrent processes (e.g. C# Dev Kit
-// discovery builds) and queues multiple vintest suites correctly.
+// discovery builds) and ensures only one VintageStory instance is ever alive.
 let runQueue: Promise<void> = Promise.resolve();
-
-// Reactive count of VS Code tasks that could conflict with a dotnet build.
-// Maintained by initBuildTaskTracking(), called once from extension.ts activate().
-let buildTaskCount = 0;
-const buildTaskEmitter = new vscode.EventEmitter<void>();
-
-// Wire up task lifecycle listeners. Must be called once during extension activation
-// so the counter is accurate for the entire extension lifetime.
-export function initBuildTaskTracking(context: vscode.ExtensionContext): void {
-  buildTaskCount = vscode.tasks.taskExecutions.filter(isConflictingTask).length;
-  context.subscriptions.push(
-    buildTaskEmitter,
-    vscode.tasks.onDidStartTask((e) => {
-      if (isConflictingTask(e.execution)) {
-        buildTaskCount++;
-        buildTaskEmitter.fire();
-      }
-    }),
-    vscode.tasks.onDidEndTask((e) => {
-      if (isConflictingTask(e.execution)) {
-        buildTaskCount = Math.max(0, buildTaskCount - 1);
-        buildTaskEmitter.fire();
-      }
-    }),
-  );
-}
 
 export async function runHandler(
   controller: vscode.TestController,
@@ -51,7 +30,7 @@ export async function runHandler(
   output.show(true);
 
   const run = controller.createTestRun(request);
-  markEnqueued(run, request, controller);
+  for (const item of includedItems(request, controller)) run.enqueued(item);
 
   const previous = runQueue;
   let release!: () => void;
@@ -60,13 +39,18 @@ export async function runHandler(
   });
 
   try {
-    // Give other test controllers (e.g. C# Dev Kit) time to start their builds
-    // before we begin checking for conflicting tasks. Runs in parallel for all
-    // queued VinTest projects, so total wall-clock cost is one sleep, not N.
-    const initialDelay = getWaitForOtherTests();
-    if (initialDelay > 0) {
+    const config = await resolveExtensionConfig(output, debug);
+    if (config === null) {
+      output.appendLine("[VinTest] No project configured - test run skipped.");
+      return;
+    }
+
+    // Give other test controllers (e.g. C# Dev Kit) time to start their builds.
+    if (config.waitForOtherTests > 0) {
       await waitOrCancel(
-        new Promise<void>((resolve) => setTimeout(resolve, initialDelay)),
+        new Promise<void>((resolve) =>
+          setTimeout(resolve, config.waitForOtherTests),
+        ),
         token,
       );
       if (token.isCancellationRequested) {
@@ -97,170 +81,148 @@ export async function runHandler(
 
     output.clear();
 
-    const runConfig = await resolveExtensionConfig(output, debug);
-    if (runConfig === null) {
-      output.appendLine("[VinTest] No project configured - test run skipped.");
-      return;
-    }
+    // Determine which projects are needed for this request.
+    const projectsToRun =
+      !request.include || request.include.length === 0
+        ? config.projects
+        : config.projects.filter((p) =>
+            request.include!.some(
+              (item) => parentProjectOfItem(item) === p.projectRoot,
+            ),
+          );
 
-    const resultsPath = path.join(
-      runConfig.dataPath,
-      "TestResults",
-      "results.json",
-    );
-
-    if (fs.existsSync(resultsPath)) {
-      fs.unlinkSync(resultsPath);
-    }
-
-    markStarted(run, request, controller);
-
-    const filter = buildFilter(request);
     if (request.exclude && request.exclude.length > 0) {
       output.appendLine(
         "[VinTest] Warning: test exclusions are not supported and will be ignored.",
       );
     }
-    const args = buildArgs(runConfig, filter, debug);
 
-    output.appendLine(`> dotnet ${args.join(" ")}`);
-    if (filter) output.appendLine(`  (filter: "${filter}")`);
-    output.appendLine("");
-
-    const cwd = runConfig.workspaceRoot;
-    const child = cp.spawn("dotnet", args, { stdio: "pipe", cwd });
-
-    // Redirect stderr into stdout (2>&1) at the stream level.
-    // Prevents interleaved output caused by Cake using different log levels on each stream.
-    const merged = new PassThrough();
-    child.stdout!.pipe(merged, { end: false });
-    child.stderr!.pipe(merged, { end: false });
-    let closedPipes = 0;
-    const onPipeEnd = () => {
-      if (++closedPipes === 2) merged.end();
-    };
-    child.stdout!.on("end", onPipeEnd);
-    child.stderr!.on("end", onPipeEnd);
-    merged.on("data", (d: Buffer) => output.append(d.toString()));
-
-    const stopDebugPoller = debug
-      ? attachDebuggerWhenReady(runConfig.pidFilePath, token, output)
-      : undefined;
-
-    token.onCancellationRequested(() => {
-      output.appendLine("\n[VinTest] Run cancelled.");
-      child.kill();
-    });
-
-    await waitForExit(child, token);
-    stopDebugPoller?.();
-
-    if (token.isCancellationRequested) return;
-
-    if (fs.existsSync(resultsPath)) {
-      await parseResults(resultsPath, controller, run);
-    } else {
-      const msg = new vscode.TestMessage(
-        "Test run did not produce results.json - the process may have timed out or crashed. " +
-          "See the VinTest output channel for details.",
+    // Run each project in sequence - never spawn two VintageStory instances.
+    for (const project of projectsToRun) {
+      if (token.isCancellationRequested) break;
+      await runSingleProject(
+        controller,
+        run,
+        request,
+        config,
+        project,
+        debug,
+        token,
+        output,
       );
-      markRunError(run, request, controller, msg);
     }
   } catch (err) {
     output.appendLine(`\n[VinTest] Error: ${err}`);
     const msg = new vscode.TestMessage(String(err));
-    markRunError(run, request, controller, msg);
+    for (const item of includedItems(request, controller)) {
+      if (!item.children.size) run.errored(item, msg);
+    }
   } finally {
     release();
     run.end();
   }
 }
 
-function waitOrCancel(
-  p: Promise<void>,
+async function runSingleProject(
+  controller: vscode.TestController,
+  run: vscode.TestRun,
+  request: vscode.TestRunRequest,
+  wsConfig: WorkspaceConfig,
+  project: ProjectConfig,
+  debug: boolean,
   token: vscode.CancellationToken,
+  output: vscode.OutputChannel,
 ): Promise<void> {
-  return new Promise<void>((resolve) => {
-    p.then(resolve);
-    token.onCancellationRequested(resolve);
+  // Mark items belonging to this project as started.
+  for (const item of projectItems(project.projectRoot, request, controller))
+    run.started(item);
+
+  const resultsPath = path.join(
+    project.cakeDataPath,
+    "TestResults",
+    "results.json",
+  );
+  if (fs.existsSync(resultsPath)) fs.unlinkSync(resultsPath);
+
+  const filter = buildFilterForProject(
+    project.projectRoot,
+    request.include ?? [],
+  );
+  const args = buildArgs(wsConfig, project, filter, debug);
+
+  output.appendLine(`\n[VinTest] Running project: ${project.displayName}`);
+  output.appendLine(`> dotnet ${args.join(" ")}`);
+  if (filter) output.appendLine(`  (filter: "${filter}")`);
+  output.appendLine("");
+
+  const child = cp.spawn("dotnet", args, {
+    stdio: "pipe",
+    cwd: project.projectRoot,
   });
-}
 
-// Waits until no VS Code task that could conflict with a dotnet build is running.
-// Uses the reactive buildTaskCount maintained by initBuildTaskTracking(), so it
-// correctly detects tasks that start while we are already waiting.
-async function waitForBuildTasks(
-  token: vscode.CancellationToken,
-  output: vscode.OutputChannel,
-): Promise<boolean> {
-  let waited = false;
-  while (buildTaskCount > 0 && !token.isCancellationRequested) {
-    waited = true;
-    const names = vscode.tasks.taskExecutions
-      .filter(isConflictingTask)
-      .map((e) => e.task.name)
-      .join(", ");
-    output.appendLine(`[VinTest] Waiting for task(s) to finish: ${names}`);
-    await waitOrCancel(
-      new Promise<void>((resolve) => {
-        const sub = buildTaskEmitter.event(() => {
-          sub.dispose();
-          resolve();
-        });
-      }),
-      token,
+  // Merge stderr into stdout to avoid interleaved Cake log output.
+  const merged = new PassThrough();
+  child.stdout!.pipe(merged, { end: false });
+  child.stderr!.pipe(merged, { end: false });
+  let closedPipes = 0;
+  const onPipeEnd = () => {
+    if (++closedPipes === 2) merged.end();
+  };
+  child.stdout!.on("end", onPipeEnd);
+  child.stderr!.on("end", onPipeEnd);
+  merged.on("data", (d: Buffer) => output.append(d.toString()));
+
+  const stopDebugPoller = debug
+    ? attachDebuggerWhenReady(project.pidFilePath, token, output)
+    : undefined;
+
+  token.onCancellationRequested(() => {
+    output.appendLine("\n[VinTest] Run cancelled.");
+    child.kill();
+  });
+
+  await waitForExit(child, token);
+  stopDebugPoller?.();
+
+  if (token.isCancellationRequested) return;
+
+  if (fs.existsSync(resultsPath)) {
+    await parseResults(resultsPath, controller, run, project.projectRoot);
+  } else {
+    const msg = new vscode.TestMessage(
+      "Test run did not produce results.json - the process may have timed out or crashed. " +
+        "See the VinTest output channel for details.",
     );
+    for (const item of projectItems(project.projectRoot, request, controller)) {
+      item.children.forEach((child) => run.errored(child, msg));
+      run.errored(item, msg);
+    }
   }
-  return waited;
-}
-
-// After a build task finishes, VBCSCompiler (the Roslyn compiler server it
-// spawned) may still hold write locks on obj/ DLLs. Shutting down build
-// servers explicitly releases those locks before we start our own build.
-async function shutdownBuildServers(
-  token: vscode.CancellationToken,
-  output: vscode.OutputChannel,
-): Promise<void> {
-  output.appendLine(
-    "[VinTest] Shutting down build servers to release file locks...",
-  );
-  await waitOrCancel(
-    new Promise<void>((resolve) => {
-      cp.exec("dotnet build-server shutdown", () => resolve());
-    }),
-    token,
-  );
-}
-
-function isConflictingTask(exec: vscode.TaskExecution): boolean {
-  const task = exec.task;
-  return (
-    task.definition.type === "dotnet" ||
-    task.source === "dotnet" ||
-    task.name.toLowerCase().includes("build")
-  );
 }
 
 function buildArgs(
-  runConfig: RunConfig,
+  wsConfig: WorkspaceConfig,
+  project: ProjectConfig,
   filter: string | undefined,
   debug: boolean,
 ): string[] {
   const args = [
     "run",
     "--project",
-    runConfig.cakeProjPath,
+    project.cakeProjectPath,
     "--",
     "--target",
-    runConfig.cakeTarget,
+    project.cakeTarget,
     "--configuration",
-    runConfig.configuration,
+    wsConfig.cakeConfiguration,
+    "--data-path",
+    project.cakeDataPath,
   ];
-  if (runConfig.vsPath) {
+  if (wsConfig.cakeVsPath) {
     args.push("--vs-path");
-    args.push(runConfig.vsPath);
+    args.push(wsConfig.cakeVsPath);
   }
-  if (runConfig.ignoreLogErrors) args.push("--ignore-log-errors");
+  if (wsConfig.cakeIgnoreLogErrors) args.push("--ignore-log-errors");
   if (debug) {
     args.push("--test-timeout");
     args.push("0");
@@ -270,78 +232,6 @@ function buildArgs(
     args.push(filter);
   }
   return args;
-}
-
-/**
- * Determine the `--test-filter` value from the run request.
- *
- * The C# runner supports comma-separated values, each matched as a
- * case-insensitive substring against `SuiteName.CaseName`.
- *
- * - No include / empty: no filter (run all)
- * - One or more items: join their ids with `,`
- *   Suite item id = `SuiteName`  → matches all tests in that suite
- *   Test item id  = `Suite.Name` → matches that specific test
- */
-function buildFilter(request: vscode.TestRunRequest): string | undefined {
-  const items = request.include;
-  if (!items || items.length === 0) return undefined;
-  return items.map((i) => i.id).join(",");
-}
-
-function markEnqueued(
-  run: vscode.TestRun,
-  request: vscode.TestRunRequest,
-  controller: vscode.TestController,
-): void {
-  if (!request.include || request.include.length === 0) {
-    controller.items.forEach((suite) => {
-      run.enqueued(suite);
-      suite.children.forEach((test) => run.enqueued(test));
-    });
-    return;
-  }
-  for (const item of request.include) {
-    run.enqueued(item);
-    item.children.forEach((child) => run.enqueued(child));
-  }
-}
-
-function markStarted(
-  run: vscode.TestRun,
-  request: vscode.TestRunRequest,
-  controller: vscode.TestController,
-): void {
-  if (!request.include || request.include.length === 0) {
-    controller.items.forEach((suite) => {
-      run.started(suite);
-      suite.children.forEach((test) => run.started(test));
-    });
-    return;
-  }
-  for (const item of request.include) {
-    run.started(item);
-    item.children.forEach((child) => run.started(child));
-  }
-}
-
-function markRunError(
-  run: vscode.TestRun,
-  request: vscode.TestRunRequest,
-  controller: vscode.TestController,
-  message: vscode.TestMessage,
-): void {
-  let suites: vscode.TestItem[];
-  if (request.include) {
-    suites = [...new Set(request.include.map((i) => i.parent ?? i))];
-  } else {
-    suites = [];
-    controller.items.forEach((i) => suites.push(i));
-  }
-  for (const suite of suites) {
-    run.errored(suite, message);
-    suite.children.forEach((child) => run.skipped(child));
-  }
 }
 
 function waitForExit(
@@ -400,4 +290,88 @@ function attachDebuggerWhenReady(
     }
   }, 500);
   return () => clearInterval(poll);
+}
+
+/**
+ * Return the top-level ancestor (project item) of any test item.
+ */
+function parentProjectOfItem(item: vscode.TestItem): string {
+  let current = item;
+  // project items are supposed to be topmost and will have no parent
+  while (current.parent) current = current.parent;
+  return current.id;
+}
+
+/**
+ * Build the --test-filter value for a single project run.
+ *
+ * - No include list → no filter (run all)
+ * - Project item included → no filter (run all in project)
+ * - Suite item included → filter = suite label
+ * - Method item included → filter = suite.method (parent label + "." + own label)
+ */
+function buildFilterForProject(
+  projectRoot: string,
+  includeItems: readonly vscode.TestItem[],
+): string | undefined {
+  // include had no items => run everything
+  if (includeItems.length === 0) return undefined;
+
+  const relevant = includeItems.filter(
+    (item) => parentProjectOfItem(item) === projectRoot,
+  );
+  if (relevant.length === 0)
+    // should be unreachable
+    throw new Error(
+      `No relevant items for ${projectRoot} in [${includeItems.map((i) => i.id).join(", ")}]`,
+    );
+
+  // include had project root itself => run everything
+  if (relevant.some((item) => item.id === projectRoot)) return undefined;
+
+  const filters = relevant.map((item) => {
+    const isProjectItem = !item.parent;
+    const isSuiteItem = item.parent && item.parent.id === projectRoot;
+    if (isProjectItem || isSuiteItem) {
+      // suite-level: filter by suite name
+      return item.label;
+    }
+    // method-level: filter by SuiteName.MethodName
+    return `${item.parent!.label}.${item.label}`;
+  });
+  return [...new Set(filters)].join(",");
+}
+
+/** Iterate all items covered by the request (or all items if no include). */
+function* includedItems(
+  request: vscode.TestRunRequest,
+  controller: vscode.TestController,
+): Generator<vscode.TestItem> {
+  if (request.include && request.include.length > 0) {
+    for (const item of request.include) yield* walkItems(item);
+  } else {
+    for (const [, item] of controller.items) yield* walkItems(item);
+  }
+}
+
+/** Iterate all items belonging to a specific project that are covered by the request. */
+function* projectItems(
+  projectRoot: string,
+  request: vscode.TestRunRequest,
+  controller: vscode.TestController,
+): Generator<vscode.TestItem> {
+  const projectItem = controller.items.get(projectRoot);
+  if (!projectItem) return;
+  if (!request.include || request.include.length === 0) {
+    yield* walkItems(projectItem);
+  } else {
+    for (const item of request.include) {
+      if (parentProjectOfItem(item) === projectRoot) yield* walkItems(item);
+    }
+  }
+}
+
+function* walkItems(item: vscode.TestItem): Generator<vscode.TestItem> {
+  yield item;
+  for (const [, child] of item.children) yield* walkItems(child);
 }

@@ -27,27 +27,56 @@ function deleteWhere(
   toDelete.forEach((id) => collection.delete(id));
 }
 
-export async function discoverAll(
-  controller: vscode.TestController,
-  workspaceRoot?: string,
-  output?: vscode.OutputChannel,
-): Promise<void> {
-  const base = workspaceRoot ? vscode.Uri.file(workspaceRoot) : undefined;
-  const pattern: vscode.GlobPattern = base
-    ? new vscode.RelativePattern(base, "**/*.cs")
-    : "**/*.cs";
-  const files = await vscode.workspace.findFiles(
-    pattern,
-    "{**/bin/**,**/obj/**,**/node_modules/**}",
-  );
-  output?.appendLine(
-    `[VinTest] Found ${files.length} .cs file(s) under ${workspaceRoot ?? "workspace"}`,
-  );
-  await Promise.all(files.map((uri) => discoverInFile(controller, uri)));
+export interface ProjectInfo {
+  projectRoot: string;
+  displayName: string;
 }
 
+/**
+ * Discovers all test suites for every given project and populates the controller.
+ * Each project becomes a top-level TestItem; suites and methods are nested under it.
+ */
+export async function discoverAll(
+  controller: vscode.TestController,
+  projects: ProjectInfo[],
+  output?: vscode.OutputChannel,
+): Promise<void> {
+  // Remove project items whose workspaceRoot is no longer in the list.
+  const activeRoots = new Set(projects.map((p) => p.projectRoot));
+  deleteWhere(controller.items, (id) => !activeRoots.has(id));
+
+  for (const { projectRoot, displayName } of projects) {
+    // Reuse existing project item to preserve VS Code gutter state.
+    let projectItem = controller.items.get(projectRoot);
+    if (!projectItem) {
+      projectItem = controller.createTestItem(projectRoot, displayName);
+      projectItem.canResolveChildren = false;
+      controller.items.add(projectItem);
+    } else {
+      projectItem.label = displayName;
+    }
+
+    const base = vscode.Uri.file(projectRoot);
+    const files = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(base, "**/*.cs"),
+      "{**/bin/**,**/obj/**,**/node_modules/**}",
+    );
+    output?.appendLine(
+      `[VinTest] Found ${files.length} .cs file(s) under ${projectRoot} (${displayName})`,
+    );
+    await Promise.all(
+      files.map((uri) => discoverInFile(controller, projectItem!, uri)),
+    );
+  }
+}
+
+/**
+ * Scans a single C# file for test suites and registers/updates them under the
+ * appropriate project TestItem (identified by the file path being within its workspaceRoot).
+ */
 export async function discoverInFile(
   controller: vscode.TestController,
+  projectItem: vscode.TestItem,
   uri: vscode.Uri,
 ): Promise<void> {
   let text: string;
@@ -64,7 +93,7 @@ export async function discoverInFile(
   ) {
     // File no longer has any test suites; clean up any previously discovered items.
     deleteWhere(
-      controller.items,
+      projectItem.children,
       (_, item) => item.uri?.toString() === uri.toString(),
     );
     return;
@@ -75,16 +104,13 @@ export async function discoverInFile(
   // Remove suite items from this file that no longer exist after re-parse.
   const newSuiteNames = new Set(suites.map((s) => s.className));
   deleteWhere(
-    controller.items,
+    projectItem.children,
     (id, item) =>
       item.uri?.toString() === uri.toString() && !newSuiteNames.has(id),
   );
 
   for (const info of suites) {
-    // Reuse the existing suite item when possible so VS Code can track range
-    // updates in place. Deleting and re-creating items with the same ID causes
-    // gutter decorations to stop updating until the editor is reopened.
-    let suiteItem = controller.items.get(info.className);
+    let suiteItem = projectItem.children.get(info.className);
     if (!suiteItem) {
       suiteItem = controller.createTestItem(
         info.className,
@@ -92,7 +118,7 @@ export async function discoverInFile(
         uri,
       );
       suiteItem.canResolveChildren = false;
-      controller.items.add(suiteItem);
+      projectItem.children.add(suiteItem);
     }
 
     // Remove child items that no longer exist.
@@ -211,28 +237,39 @@ function parseFile(text: string, uri: vscode.Uri): SuiteInfo[] {
   return suites;
 }
 
-export function setupFileWatcher(
+/**
+ * Creates one FileSystemWatcher per project root and returns them all.
+ * Each watcher re-discovers test items when .cs files change within that root.
+ */
+export function setupFileWatchers(
   controller: vscode.TestController,
-  workspaceRoot?: string,
-): vscode.FileSystemWatcher {
-  const base = workspaceRoot ? vscode.Uri.file(workspaceRoot) : undefined;
-  const pattern: vscode.GlobPattern = base
-    ? new vscode.RelativePattern(base, "**/*.cs")
-    : "**/*.cs";
-  const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+  projects: ProjectInfo[],
+): vscode.FileSystemWatcher[] {
+  return projects.map(({ projectRoot: workspaceRoot }) => {
+    const base = vscode.Uri.file(workspaceRoot);
+    const pattern = new vscode.RelativePattern(base, "**/*.cs");
+    const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
-  watcher.onDidChange((uri) =>
-    discoverInFile(controller, uri).catch(console.error),
-  );
-  watcher.onDidCreate((uri) =>
-    discoverInFile(controller, uri).catch(console.error),
-  );
-  watcher.onDidDelete((uri) => {
-    deleteWhere(
-      controller.items,
-      (_, item) => item.uri?.toString() === uri.toString(),
-    );
+    const getProjectItem = () => controller.items.get(workspaceRoot);
+
+    watcher.onDidChange((uri) => {
+      const pi = getProjectItem();
+      if (pi) discoverInFile(controller, pi, uri).catch(console.error);
+    });
+    watcher.onDidCreate((uri) => {
+      const pi = getProjectItem();
+      if (pi) discoverInFile(controller, pi, uri).catch(console.error);
+    });
+    watcher.onDidDelete((uri) => {
+      const pi = getProjectItem();
+      if (pi) {
+        deleteWhere(
+          pi.children,
+          (_, item) => item.uri?.toString() === uri.toString(),
+        );
+      }
+    });
+
+    return watcher;
   });
-
-  return watcher;
 }
