@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { resolveExtensionConfig, type RunConfig } from "./config";
 import { discoverAll, setupFileWatcher } from "./discovery";
-import { runHandler } from "./runner";
+import { runHandler, initBuildTaskTracking } from "./runner";
 
 export function activate(context: vscode.ExtensionContext): void {
   const controller = vscode.tests.createTestController("vintest", "VinTest");
@@ -9,6 +9,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const output = vscode.window.createOutputChannel("VinTest");
   context.subscriptions.push(output);
+
+  initBuildTaskTracking(context);
 
   let watcher: vscode.FileSystemWatcher | undefined;
   // Dispose watcher on extension deactivation regardless of how it was created.

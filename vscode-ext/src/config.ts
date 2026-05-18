@@ -13,6 +13,12 @@ export interface RunConfig {
   readonly cakeTarget: string;
 }
 
+export function getWaitForOtherTests(): number {
+  return vscode.workspace
+    .getConfiguration("vintest")
+    .get<number>("waitForOtherTests", 0);
+}
+
 /**
  * Resolves the full extension config needed for both test discovery and running.
  * Returns null if there is nothing to do (no project found, or user cancelled

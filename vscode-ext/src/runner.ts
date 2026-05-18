@@ -3,8 +3,43 @@ import * as cp from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { PassThrough } from "stream";
-import { resolveExtensionConfig, type RunConfig } from "./config";
+import {
+  resolveExtensionConfig,
+  getWaitForOtherTests,
+  type RunConfig,
+} from "./config";
 import { parseResults } from "./resultsParser";
+
+// Serializes all dotnet invocations so at most one runs at a time.
+// Prevents build-output conflicts with concurrent processes (e.g. C# Dev Kit
+// discovery builds) and queues multiple vintest suites correctly.
+let runQueue: Promise<void> = Promise.resolve();
+
+// Reactive count of VS Code tasks that could conflict with a dotnet build.
+// Maintained by initBuildTaskTracking(), called once from extension.ts activate().
+let buildTaskCount = 0;
+const buildTaskEmitter = new vscode.EventEmitter<void>();
+
+// Wire up task lifecycle listeners. Must be called once during extension activation
+// so the counter is accurate for the entire extension lifetime.
+export function initBuildTaskTracking(context: vscode.ExtensionContext): void {
+  buildTaskCount = vscode.tasks.taskExecutions.filter(isConflictingTask).length;
+  context.subscriptions.push(
+    buildTaskEmitter,
+    vscode.tasks.onDidStartTask((e) => {
+      if (isConflictingTask(e.execution)) {
+        buildTaskCount++;
+        buildTaskEmitter.fire();
+      }
+    }),
+    vscode.tasks.onDidEndTask((e) => {
+      if (isConflictingTask(e.execution)) {
+        buildTaskCount = Math.max(0, buildTaskCount - 1);
+        buildTaskEmitter.fire();
+      }
+    }),
+  );
+}
 
 export async function runHandler(
   controller: vscode.TestController,
@@ -14,15 +49,57 @@ export async function runHandler(
   debug = false,
 ): Promise<void> {
   output.show(true);
-  output.clear();
 
   const run = controller.createTestRun(request);
+  markEnqueued(run, request, controller);
+
+  const previous = runQueue;
+  let release!: () => void;
+  runQueue = new Promise<void>((resolve) => {
+    release = resolve;
+  });
 
   try {
+    // Give other test controllers (e.g. C# Dev Kit) time to start their builds
+    // before we begin checking for conflicting tasks. Runs in parallel for all
+    // queued VinTest projects, so total wall-clock cost is one sleep, not N.
+    const initialDelay = getWaitForOtherTests();
+    if (initialDelay > 0) {
+      await waitOrCancel(
+        new Promise<void>((resolve) => setTimeout(resolve, initialDelay)),
+        token,
+      );
+      if (token.isCancellationRequested) {
+        output.appendLine("[VinTest] Run cancelled.");
+        return;
+      }
+    }
+
+    await waitOrCancel(previous, token);
+    if (token.isCancellationRequested) {
+      output.appendLine("[VinTest] Run cancelled.");
+      return;
+    }
+
+    const waitedForTasks = await waitForBuildTasks(token, output);
+    if (token.isCancellationRequested) {
+      output.appendLine("[VinTest] Run cancelled.");
+      return;
+    }
+
+    if (waitedForTasks) {
+      await shutdownBuildServers(token, output);
+      if (token.isCancellationRequested) {
+        output.appendLine("[VinTest] Run cancelled.");
+        return;
+      }
+    }
+
+    output.clear();
+
     const runConfig = await resolveExtensionConfig(output, debug);
     if (runConfig === null) {
       output.appendLine("[VinTest] No project configured - test run skipped.");
-      run.end();
       return;
     }
 
@@ -94,8 +171,74 @@ export async function runHandler(
     const msg = new vscode.TestMessage(String(err));
     markRunError(run, request, controller, msg);
   } finally {
+    release();
     run.end();
   }
+}
+
+function waitOrCancel(
+  p: Promise<void>,
+  token: vscode.CancellationToken,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    p.then(resolve);
+    token.onCancellationRequested(resolve);
+  });
+}
+
+// Waits until no VS Code task that could conflict with a dotnet build is running.
+// Uses the reactive buildTaskCount maintained by initBuildTaskTracking(), so it
+// correctly detects tasks that start while we are already waiting.
+async function waitForBuildTasks(
+  token: vscode.CancellationToken,
+  output: vscode.OutputChannel,
+): Promise<boolean> {
+  let waited = false;
+  while (buildTaskCount > 0 && !token.isCancellationRequested) {
+    waited = true;
+    const names = vscode.tasks.taskExecutions
+      .filter(isConflictingTask)
+      .map((e) => e.task.name)
+      .join(", ");
+    output.appendLine(`[VinTest] Waiting for task(s) to finish: ${names}`);
+    await waitOrCancel(
+      new Promise<void>((resolve) => {
+        const sub = buildTaskEmitter.event(() => {
+          sub.dispose();
+          resolve();
+        });
+      }),
+      token,
+    );
+  }
+  return waited;
+}
+
+// After a build task finishes, VBCSCompiler (the Roslyn compiler server it
+// spawned) may still hold write locks on obj/ DLLs. Shutting down build
+// servers explicitly releases those locks before we start our own build.
+async function shutdownBuildServers(
+  token: vscode.CancellationToken,
+  output: vscode.OutputChannel,
+): Promise<void> {
+  output.appendLine(
+    "[VinTest] Shutting down build servers to release file locks...",
+  );
+  await waitOrCancel(
+    new Promise<void>((resolve) => {
+      cp.exec("dotnet build-server shutdown", () => resolve());
+    }),
+    token,
+  );
+}
+
+function isConflictingTask(exec: vscode.TaskExecution): boolean {
+  const task = exec.task;
+  return (
+    task.definition.type === "dotnet" ||
+    task.source === "dotnet" ||
+    task.name.toLowerCase().includes("build")
+  );
 }
 
 function buildArgs(
@@ -144,6 +287,24 @@ function buildFilter(request: vscode.TestRunRequest): string | undefined {
   const items = request.include;
   if (!items || items.length === 0) return undefined;
   return items.map((i) => i.id).join(",");
+}
+
+function markEnqueued(
+  run: vscode.TestRun,
+  request: vscode.TestRunRequest,
+  controller: vscode.TestController,
+): void {
+  if (!request.include || request.include.length === 0) {
+    controller.items.forEach((suite) => {
+      run.enqueued(suite);
+      suite.children.forEach((test) => run.enqueued(test));
+    });
+    return;
+  }
+  for (const item of request.include) {
+    run.enqueued(item);
+    item.children.forEach((child) => run.enqueued(child));
+  }
 }
 
 function markStarted(

@@ -49,6 +49,11 @@
         "vintest.dataPath": {
           "type": "string",
           "description": "Relative workspace path to the VintageStory data directory (the folder containing Saves/, Logs/, TestResults/, etc.). Auto-detected as 'gamedata/' next to the Cake project if empty."
+        },
+        "vintest.waitForOtherTests": {
+          "type": "number",
+          "default": 0,
+          "markdownDescription": "Milliseconds to wait after a run is requested before starting a cake task.\n\nIf your projects have regular unit tests and you use [C# Dev Kit](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.csdevkit) or [DotRush](https://marketplace.visualstudio.com/items?itemName=nromanov.dotrush) to run them from VS Code, this ensures that VinTest would spawn its `dotnet run` after the other extension has spawned its `dotnet build`, avoiding conflicts over same build files.\n\nThis option is disabled (set to 0) by default."
         }
       }
     }
