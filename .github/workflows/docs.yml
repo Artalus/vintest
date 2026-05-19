@@ -1,0 +1,58 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    env:
+      VS_VERSION: "1.21.7"
+
+    steps:
+      - uses: actions/configure-pages@v6
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: astral-sh/setup-uv@v8.1.0
+
+      - name: Download VintagestoryAPI
+        run: |
+          set -exuo pipefail
+          curl -fsSL "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${VS_VERSION}.tar.gz" \
+            -o vs_server.tar.gz
+          mkdir -p vs_install
+          tar -xzf vs_server.tar.gz -C vs_install
+          DLL_DIR=$(find vs_install -name 'VintagestoryAPI.dll' -printf '%h\n' | head -1)
+          DLL_DIR="$(pwd)/$DLL_DIR"
+          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+
+      - name: Restore uv tools
+        run: uv sync --group docs
+
+      - name: Generate docs
+        run: ./docs.sh
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - uses: actions/deploy-pages@v5
+        id: deployment

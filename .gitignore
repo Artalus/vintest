@@ -9,4 +9,13 @@ Release/
 
 node_modules/
 out/
+
+# # # docs
+# generated API documentation from def-doc
+docs/api/
+# glue file for def-doc to provide valid links to VS symbols
+vs-api-links.txt
+# final docs site from zensical
+site/
+
 *.vsix

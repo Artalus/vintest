@@ -22,6 +22,12 @@ repos:
         language: system
         types:
           - ts
+      - id: mdformat
+        name: Run mdformat on Markdown files
+        entry: uv run mdformat .
+        language: system
+        types:
+          - markdown
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.37.1

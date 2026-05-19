@@ -1,0 +1,4 @@
+exclude = [
+    "docs/api/**",
+    "vscode-ext/node_modules/**",
+]
