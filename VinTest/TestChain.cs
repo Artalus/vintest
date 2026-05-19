@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace VinTest;
 
 /// <summary>
-/// Builder for a sequence of <see cref="TestStep"/>s that make up a test method in <see cref="ITestSuite"/>.
+/// Builder for a sequence of <see cref="TestStep"/>s that make up a test method.
 /// </summary>
 public class TestChain : IEnumerable<TestStep>
 {
@@ -73,11 +73,16 @@ public class TestChain : IEnumerable<TestStep>
         return this;
     }
 
+    /// <inheritdoc/>
     public IEnumerator<TestStep> GetEnumerator() => _steps.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
 
+/// <summary>
+/// Single step in a test method for runner to schedule through VS callbacks.
+/// Has to be exposed, but not intended to be used by tests code directly.
+/// </summary>
 public abstract record TestStep
 {
     private TestStep() { }

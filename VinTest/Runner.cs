@@ -25,7 +25,7 @@ public class Runner(ICoreServerAPI sapi)
     /// <summary>
     /// Starts the test runner with the given test suites.
     /// </summary>
-    /// <param name="suites">Objects with methods annotated with [GameTest] attribute, returning IEnumerable<TestStep></param>
+    /// <param name="suites">Objects with methods annotated with [GameTest] attribute, returning <see cref="IEnumerable{TestStep}"/>.</param>
     /// <param name="startupDelayMs">Milliseconds to wait before running the first test.</param>
     /// <param name="testCaseFilter">
     /// Case-insensitive substring to filter <c>SuiteName.CaseName</c>s by.

@@ -30,6 +30,7 @@ public abstract class GametestModsystemBase : ModSystem
 
     private bool _started;
 
+    /// <inheritdoc/>
     public override void StartServerSide(ICoreServerAPI api)
     {
         SApi = api;

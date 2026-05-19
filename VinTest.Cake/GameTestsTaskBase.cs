@@ -31,44 +31,55 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
     // --- Extension points ---
 
     /// <summary>
-    /// Additional log line substrings treated as errors that would cause the run to fail.
-    /// Joined with `<see cref="DefaultLogErrors"/>`.
+    /// Lines containing these substrings will be highlighted in red in the filtered log,
+    /// and will cause the task to fail, unless <see cref="ContextBase.IgnoreLogErrors"/> is set,
+    /// or demoted via <see cref="LogSuppressions"/>.
+    ///
+    /// Joined with <see cref="DefaultLogErrors"/>: <c>"[Error]"</c>.
+    ///
     /// Override to customize.
     /// </summary>
     protected virtual string[] AdditionalLogErrors => [];
 
     /// <summary>
-    /// Additional log line substrings to highlight; does not demote errors.
-    /// Joined with `<see cref="DefaultLogWarnings"/>`.
+    /// Lines containing these substrings will be highlighted in yellow in the filtered log.
+    ///
+    /// Joined with <see cref="DefaultLogWarnings"/>: <c>"[Warning]", "not found. Hint:"</c>.
+    ///
+    /// Can be demoted or promoted via <see cref="LogSuppressions"/>.
+    ///
     /// Override to customize.
     /// </summary>
     protected virtual string[] AdditionalLogWarnings => [];
 
     /// <summary>
-    /// Additional log line substrings to capture beyond the defaults; does not demote warnings.
-    /// Joined with `<see cref="DefaultLogCapture"/>`
+    /// Lines containing these substrings will be printed in the filtered log.
+    ///
+    /// Joined with <see cref="DefaultLogCapture"/>: <c>"[VinTest]"</c>.
+    ///
+    /// Can be demoted or promoted via <see cref="LogSuppressions"/>.
+    ///
     /// Override to customize.
     /// </summary>
     protected virtual string[] AdditionalLogCapture => [];
 
     /// <summary>
-    /// Suppression rules applied after primary classification.
-    /// Each entry is a (Pattern, TargetLevel?) pair:
-    /// <list type="bullet">
-    /// <item><description><c>
-    ///   TargetLevel == null</c> - ignore the line entirely (not captured).
-    /// </description></item>
-    /// <item><description>
-    ///   <c>TargetLevel set</c> - override the classified level (e.g. demote Error -> Warning).
-    /// </description></item>
-    /// </list>
-    /// Only lines that are Error-level after suppression cause the build to fail.
+    /// Change level of specific log lines, pattern-matched after primary classification.
+    /// Each entry is a <c>(RegexPattern, Level?)</c> pair.
+    ///
+    /// If <c>Level == null</c> - ignore the line entirely (not captured).
+    ///
+    /// If <c>Level != null</c> - override the classified level (e.g. demote Error -> Warning).
+    ///
+    /// Lines that remain/become Error-level after suppression will cause the task to fail.
+    ///
     /// Override to customize.
     /// </summary>
     protected virtual IEnumerable<(string Pattern, LogLevel? TargetLevel)> LogSuppressions => [];
 
     /// <summary>
     /// Absolute paths to mod directories to pass to --addModPath when launching VS.
+    ///
     /// Override to customize.
     /// </summary>
     protected virtual IEnumerable<string> GetModBinaryPaths(TContext context) =>
@@ -89,23 +100,26 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
         ];
 
     /// <summary>
-    /// Called during setup, after generic Cleanup().
+    /// Called during <see cref="Run(TContext)"/>, after generic Cleanup().
     /// Create mod-specific config files here.
+    ///
     /// Override to customize.
     /// </summary>
     protected virtual void Prepare(TContext context) { }
 
     /// <summary>
-    /// Called after Prepare().
+    /// Called during <see cref="Run(TContext)"/>, after <see cref="Prepare(TContext)"/>.
     /// Build (or rebuild) whatever is needed before VS is launched.
+    ///
     /// Default implementation builds <see cref="ContextBase.AutotestsProjectName"/> (which
-    /// should pull incore mod project transitively via ProjectReference in `.csproj`).
+    /// should pull in core mod project transitively via ProjectReference in <c>.csproj</c>).
+    ///
     /// Override to customize.
     ///
     /// NOTE: this *OMITS* rebuilding cake orchestrator project: its executable would be locked
     /// and cause MsBuild to fail, since the executable is already driving the build.
-    /// This should not be a problem for `dotnet run` since it rebuilds cake automatically,
-    /// but it *WILL* mess things up if you run `CakeBuild.exe` manually.
+    /// This should not be a problem for <c>dotnet run</c> since it rebuilds cake automatically,
+    /// but it *WILL* mess things up if you run <c>CakeBuild.exe</c> manually.
     /// </summary>
     protected virtual void Build(TContext context)
     {
@@ -137,6 +151,11 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
     // --- Entry point ---
 
     public override void Run(TContext context)
+    /// <summary>
+    /// Entry point for the gametests task, driving the entire process.
+    /// Cleanup(), <see cref="Prepare(TContext)"/>, <see cref="Build(TContext)"/>, Launch(), Wait(), Print().
+    /// Will be called by Cake internals.
+    /// </summary>
     {
         var vsExe = Path.Combine(context.VsPath, "VintageStory.exe");
 
@@ -162,6 +181,11 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
         PrintResults(context, result, badLines, context.IgnoreLogErrors);
     }
 
+    /// <summary>
+    /// Performs cleanup after <see cref="Run(TContext)"/> finishes, even if it fails.
+    /// Will be called by Cake internals.
+    /// If you override this, make sure to call the base method first.
+    /// </summary>
     public override void Finally(TContext context)
     {
         // cleanup file upon cake exit

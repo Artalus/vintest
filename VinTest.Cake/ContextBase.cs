@@ -15,13 +15,13 @@ namespace VinTest.Cake;
 public abstract class ContextBase : FrostingContext
 {
     /// <summary>
-    /// Name of your core mod's project (WITHOUT `.csproj` extension)
+    /// Name of your core mod's project (WITHOUT <c>.csproj</c> extension)
     /// You must define it in your BuildContext class.
     /// </summary>
     public abstract string ProjectName { get; }
 
     /// <summary>
-    /// Name of the test mod project (WITHOUT `.csproj` extension).
+    /// Name of the test mod project (WITHOUT <c>.csproj</c> extension).
     /// You can redefine it in your BuildContext class if you use different naming convention.
     /// </summary>
     public virtual string AutotestsProjectName => $"{ProjectName}.gametests";
@@ -62,6 +62,7 @@ public abstract class ContextBase : FrostingContext
     /// </summary>
     public bool ManualMode { get; }
 
+    /// <summary>
     /// [ARG] Case-insensitive substring filter applied to <c>SuiteName.CaseName</c>.
     /// Leave empty to run all tests.
     /// When non-empty, only matching tests are executed.
@@ -84,6 +85,7 @@ public abstract class ContextBase : FrostingContext
     /// </summary>
     public string PidFilePath => Path.Combine(DataPath, TestResultsDirName, "vs.pid");
 
+    /// <inheritdoc/>
     protected ContextBase(ICakeContext context)
         : base(context)
     {
