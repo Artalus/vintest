@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      csharp: ${{ steps.filter.outputs.csharp }}
+      typescript: ${{ steps.filter.outputs.typescript }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            csharp:
+              - '.github/workflows/ci.yml'
+              - 'VinTest/**'
+              - 'VinTest.Cake/**'
+            typescript:
+              - '.github/workflows/ci.yml'
+              - 'vscode-ext/**'
+
+  build-csharp:
+    needs: changes
+    if: needs.changes.outputs.csharp == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VS_VERSION: "1.21.7"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download VintagestoryAPI
+        run: |
+          set -exuo pipefail
+          curl -fsSL "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${VS_VERSION}.tar.gz" \
+            -o vs_server.tar.gz
+          mkdir -p vs_install
+          tar -xzf vs_server.tar.gz -C vs_install
+          DLL_DIR=$(find vs_install -name 'VintagestoryAPI.dll' -printf '%h\n' | head -1)
+          DLL_DIR="$(pwd)/$DLL_DIR"
+          ls -la "$DLL_DIR"
+          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+
+      - name: Build VinTest
+        run: dotnet build VinTest/VinTest.csproj --configuration Release
+      - name: Build VinTest.Cake
+        run: dotnet build VinTest.Cake/VinTest.Cake.csproj --configuration Release
+
+  build-typescript:
+    needs: changes
+    if: needs.changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        working-directory: vscode-ext
+        run: npm ci
+
+      - name: Compile
+        working-directory: vscode-ext
+        run: npm run compile
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "0.11"
+
+      - name: Python dependencies
+        shell: bash
+        run: |
+          set -exuo pipefail
+          uv venv
+          uv pip install pre-commit
+      - name: Dotnet dependencies
+        shell: bash
+        run: |
+          set -exuo pipefail
+          dotnet tool restore
+
+      - name: Pre-commit hooks
+        shell: bash
+        run: |
+          set -exuo pipefail
+          # GHA does not fetch branch names at checkout
+          git fetch
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            uv run pre-commit run --from-ref origin/${{ github.base_ref }} --to-ref HEAD
+          else
+            uv run pre-commit run --all-files
+          fi

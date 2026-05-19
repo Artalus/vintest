@@ -1,0 +1,82 @@
+name: Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "What to build"
+        required: true
+        type: choice
+        options:
+          - core
+          - cake
+          - vscode
+      vs_version:
+        description: "VintageStory version (for core/cake builds)"
+        required: false
+        default: "1.21.7"
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        if: inputs.component != 'vscode'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - name: Setup Node.js
+        if: inputs.component == 'vscode'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Download VintagestoryAPI
+        if: inputs.component != 'vscode'
+        run: |
+          set -exuo pipefail
+          curl -fsSL "https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_${{ inputs.vs_version }}.tar.gz" \
+            -o vs_server.tar.gz
+          mkdir -p vs_install
+          tar -xzf vs_server.tar.gz -C vs_install
+          DLL_DIR=$(find vs_install -name 'VintagestoryAPI.dll' -printf '%h\n' | head -1)
+          DLL_DIR="$(pwd)/$DLL_DIR"
+          ls -la "$DLL_DIR"
+          echo "VINTAGE_STORY=$DLL_DIR" >> "$GITHUB_ENV"
+
+
+      - name: Build VinTest
+        if: inputs.component == 'core'
+        run: dotnet build VinTest/VinTest.csproj --configuration Release
+      - name: Pack VinTest
+        if: inputs.component == 'core'
+        run: dotnet pack VinTest/VinTest.csproj --configuration Release --no-build -o ./out
+
+      - name: Build VinTest.Cake
+        if: inputs.component == 'cake'
+        run: dotnet build VinTest.Cake/VinTest.Cake.csproj --configuration Release
+      - name: Pack VinTest.Cake
+        if: inputs.component == 'cake'
+        run: dotnet pack VinTest.Cake/VinTest.Cake.csproj --configuration Release --no-build -o ./out
+
+      - name: Build vscode extension
+        if: inputs.component == 'vscode'
+        working-directory: vscode-ext
+        run: |
+          set -exuo pipefail
+          npm ci
+          npm run package
+          rm -rf ../out
+          mkdir ../out
+          mv vintest*.vsix ../out/
+
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.component }}-build
+          path: ./out/
+          retention-days: 7
