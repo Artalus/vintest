@@ -81,7 +81,7 @@ public abstract class GametestModsystemBase : ModSystem
 /// <summary>
 /// Optional config read from JSON file under <c>ModConfig/</c>.
 /// </summary>
-public class VinTestConfig
+internal class VinTestConfig
 {
     /// <summary>
     /// When <c>true</c>, the mod loads normally but tests are not started automatically.

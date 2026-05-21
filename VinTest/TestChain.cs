@@ -87,13 +87,14 @@ public abstract record TestStep
 {
     private TestStep() { }
 
-    public sealed record ConditionalWaitStep(int Ms, Func<bool> Condition) : TestStep;
+    internal sealed record ConditionalWaitStep(int Ms, Func<bool> Condition) : TestStep;
 
-    public sealed record DoStep(Action Action) : TestStep;
+    internal sealed record DoStep(Action Action) : TestStep;
 
-    public sealed record AssertStep(string Name, Func<bool> Condition, string Location) : TestStep;
+    internal sealed record AssertStep(string Name, Func<bool> Condition, string Location)
+        : TestStep;
 
-    public sealed record PollStep(
+    internal sealed record PollStep(
         string Name,
         int MaxMs,
         Func<bool> BreakWhen,

@@ -150,12 +150,12 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
 
     // --- Entry point ---
 
-    public override void Run(TContext context)
     /// <summary>
     /// Entry point for the gametests task, driving the entire process.
     /// Cleanup(), <see cref="Prepare(TContext)"/>, <see cref="Build(TContext)"/>, Launch(), Wait(), Print().
     /// Will be called by Cake internals.
     /// </summary>
+    public sealed override void Run(TContext context)
     {
         var vsExe = Path.Combine(context.VsPath, "VintageStory.exe");
 

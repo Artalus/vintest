@@ -98,7 +98,7 @@ public abstract class ContextBase : FrostingContext
         if (string.IsNullOrEmpty(vspathCandidate))
         {
             if (vspathCandidate == null)
-                Log.Information("* Directory.Build.props not availabble; trying env");
+                Log.Information("* Directory.Build.props not available; trying env");
             else
                 Log.Information("* Directory.Build.props has no valid path; trying env");
             vspathCandidate = ReadVsPathFromEnv();

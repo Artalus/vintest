@@ -10,7 +10,7 @@ using Vintagestory.API.Server;
 
 namespace VinTest;
 
-public class Runner(ICoreServerAPI sapi)
+internal class Runner(ICoreServerAPI sapi)
 {
     private readonly ICoreServerAPI sapi = sapi;
     private readonly Queue<CaseEntry> caseQueue = [];
@@ -398,7 +398,7 @@ public class Runner(ICoreServerAPI sapi)
 /// <summary>
 /// Overall result of a test run once the runner is done with it.
 /// </summary>
-public class TestRunResult
+internal class TestRunResult
 {
     public DateTime Timestamp { get; set; }
     public bool Passed => Suites.All(s => s.Passed);
@@ -408,7 +408,7 @@ public class TestRunResult
 /// <summary>
 /// Result of a single entire ITestSuite, containing multiple test cases.
 /// </summary>
-public class TestSuiteResult
+internal class TestSuiteResult
 {
     public required string SuiteName { get; set; }
     public bool Passed => TestCases.All(tc => tc.Passed);
@@ -418,7 +418,7 @@ public class TestSuiteResult
 /// <summary>
 /// Result of a single [GameTest] marked method.
 /// </summary>
-public class TestCaseResult
+internal class TestCaseResult
 {
     public required string Name { get; set; }
     public bool Passed { get; set; }
@@ -428,7 +428,7 @@ public class TestCaseResult
     public string? ExceptionMessage { get; set; }
 }
 
-public class AssertionResult
+internal class AssertionResult
 {
     public string Name { get; set; } = "";
     public bool Passed { get; set; }
