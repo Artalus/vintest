@@ -87,8 +87,7 @@ jobs:
         shell: bash
         run: |
           set -exuo pipefail
-          uv venv
-          uv pip install pre-commit
+          uv sync --group dev
       - name: Dotnet dependencies
         shell: bash
         run: |
