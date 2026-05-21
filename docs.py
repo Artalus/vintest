@@ -26,9 +26,9 @@ def main(args: Args) -> None:
     out = "dedo-out"
     shutil.rmtree(out, ignore_errors=True)
     if args.target == "core":
-        dll = "VinTest/bin/Release/net8.0/VinTest.dll"
+        dll = "VinTest/bin/Release/net10.0/VinTest.dll"
     elif args.target == "cake":
-        dll = "VinTest.Cake/bin/Release/net8.0/VinTest.Cake.dll"
+        dll = "VinTest.Cake/bin/Release/net10.0/VinTest.Cake.dll"
     elif args.target == "vintage":
         e = os.getenv("VINTAGE_STORY")
         if not e:

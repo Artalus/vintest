@@ -26,7 +26,7 @@ Update your `CakeBuild.csproj` C# project to use the [`VinTest.Cake`](/vintest/a
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RunWorkingDirectory>$(MSBuildProjectDirectory)</RunWorkingDirectory> <!-- (1)! -->
   </PropertyGroup>
 
