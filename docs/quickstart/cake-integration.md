@@ -131,7 +131,7 @@ dotnet run `
   --project ./CakeBuild `
   --target RunGameTests `
   -- `
-    --vs-path "D:/VintageStory/1.21.7" `
+    --vs-path "D:/VintageStory/1.22.2" `
     --data-path "../gamedata" `
     --test-world "autotest" `
     --manual-mode true
@@ -166,7 +166,7 @@ dotnet run `
   --project ./CakeBuild `
   --target RunGameTests `
   -- `
-    --vs-path "D:/VintageStory/1.21.7" `
+    --vs-path "D:/VintageStory/1.22.2" `
     --data-path "../gamedata" `
     --test-world "autotest" `
     # (1)!

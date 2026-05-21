@@ -18,7 +18,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     env:
-      VS_VERSION: "1.21.7"
+      VS_VERSION: "1.22.2"
 
     steps:
       - uses: actions/configure-pages@v6

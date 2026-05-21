@@ -23,8 +23,8 @@ Vintage Story installation directory (the one that contains `VintagestoryAPI.dll
 
     ```xml
     <Reference Include="VintagestoryAPI">
-        <!-- BAD: expects people to have disk E:, have exactly VS 1.21.7, have it installed exactly there -->
-        <HintPath>E:/Games/VintageStoryManaged/1.21.7/VintagestoryAPI.dll</HintPath>
+        <!-- BAD: expects people to have disk E:, have exactly VS 1.22.2, have it installed exactly there -->
+        <HintPath>E:/Games/VintageStoryManaged/1.22.2/VintagestoryAPI.dll</HintPath>
         <!-- BAD: expects to have VS exactly three directories above the mod workspace -->
         <HintPath>../../../VintageStory/VintagestoryAPI.dll</HintPath>
         <!-- GOOD: everyone decide for themselves where their VS is -->
