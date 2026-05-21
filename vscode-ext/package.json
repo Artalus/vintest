@@ -26,23 +26,23 @@
         "vintest.projects": {
           "type": "array",
           "default": [],
-          "markdownDescription": "Explicit list of VinTest projects to use. When empty, all Cake projects in the workspace are auto-detected. Each entry must specify `cakeBuildProject`; `dataPath` is optional and defaults to `gamedata/` next to the Cake project.",
+          "markdownDescription": "Explicit list of VinTest projects to use. When empty, all Cake projects in the workspace are auto-detected. Each entry must at least specify `cakeBuildProject`.",
           "items": {
             "type": "object",
             "properties": {
               "cakeBuildProject": {
                 "type": "string",
-                "description": "Absolute or workspace-relative path to the Cake .csproj (e.g. 'MyMod/ZZCakeBuild/CakeBuild.csproj')."
+                "markdownDescription": "Absolute path to the Cake .csproj.\n\nExample: `D:/git/vs/MyMod/ZZCakeBuild/CakeBuild.csproj`."
               },
               "cake.dataPath": {
                 "type": "string",
                 "default": null,
-                "description": "Absolute or workspace-relative path to the VintageStory data directory (Saves/, Logs/, TestResults/). Defaults to 'gamedata/' next to the Cake project."
+                "description": "Absolute path to the VintageStory data directory (containing Saves/, Logs/, ModConfig/)\n\nExample: `D:/git/vs/MyMod/gamedata`\n\nIf not set, resolves to `gamedata/` directory next to the CakeBuild project directory."
               },
               "cake.target": {
                 "type": "string",
                 "default": null,
-                "description": "Cake target to invoke for this project. Overrides the global vintest.cakeTarget when set."
+                "markdownDescription": "Cake target to invoke for this project: `MyTaskName`.\n\nIf not set, resolves to `RunGameTests`."
               }
             },
             "required": ["cakeBuildProject"],

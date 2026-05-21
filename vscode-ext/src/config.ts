@@ -18,7 +18,7 @@ export interface WorkspaceConfig {
 
 /** Fully parsed and ready configuration of a single VinTest'able mod folder in this vscode workspace */
 export interface ProjectConfig {
-  /** Path to where the entire mod project is located */
+  /** Abbsolute path to where the entire mod project is located */
   readonly projectRoot: string;
   /** Display name shown in the Test Explorer (e.g. "PetMapMarkers.gametests") */
   readonly displayName: string;
@@ -59,9 +59,7 @@ export async function resolveExtensionConfig(
   const real: ProjectConfig[] = [];
   for (const d of detected) {
     const root = path.dirname(path.dirname(d.cakeProjPath));
-    const dataPath = d.dataPathOverride
-      ? path.resolve(root, d.dataPathOverride)
-      : path.join(root, "gamedata");
+    const dataPath = d.dataPathOverride ?? path.join(root, "gamedata");
     const pid = path.join(dataPath, "TestResults", "vs.pid");
     real.push({
       cakeProjectPath: d.cakeProjPath,
@@ -85,8 +83,11 @@ export async function resolveExtensionConfig(
 
 /** Intermediate configuration of a single project; resolved from vscode's settings or autodetected */
 interface DetectedProject {
+  /** Absolute path to CakeBuild.csproj */
   cakeProjPath: string;
+  /** Absolute path to gamedata */
   dataPathOverride?: string;
+  /** Cake task name */
   cakeTargetOverride?: string;
 }
 
@@ -115,33 +116,41 @@ async function resolveProjects(
       const project = setting.cakeBuildProject?.trim();
       if (!project)
         throw new Error(
-          "vintest.projects[].cakeBuildProject is empty - provide a valid value or remove the setting.",
+          "vintest.projects: cakeBuildProject is empty - provide a valid value or remove the setting.",
         );
-      const resolved = path.isAbsolute(project)
-        ? project
-        : resolveAcrossWorkspaceFolders(project);
-      if (!resolved || !fs.existsSync(resolved)) {
+      if (!path.isAbsolute(project))
         throw new Error(
-          `vintest.projects: cakeBuildProject "${project}" not found.`,
+          `vintest.projects: cakeBuildProject "${project}": path must be absolute.`,
+        );
+      if (!fs.existsSync(project)) {
+        throw new Error(
+          `vintest.projects: cakeBuildProject "${project}": file not found.`,
         );
       }
-      const rawDataPath = setting["cake.dataPath"]?.trim();
+
+      const dataPath = setting["cake.dataPath"]?.trim();
       // undefined setting should pass and cause autodetection in cake
-      if (rawDataPath !== undefined && !rawDataPath)
+      if (dataPath !== undefined && !dataPath)
         throw new Error(
           `vintest.projects[].cake.dataPath is empty - provide a valid value or remove the setting.`,
         );
-      const rawTarget = setting["cake.target"]?.trim();
-      if (rawTarget !== undefined && !rawTarget)
+      if (dataPath !== undefined && !path.isAbsolute(dataPath))
+        throw new Error(
+          `vintest.projects: cake.dataPath "${dataPath}": path must be absolute.`,
+        );
+
+      const target = setting["cake.target"]?.trim();
+      if (target !== undefined && !target)
         throw new Error(
           `vintest.projects[].cake.target is empty - provide a valid value or remove the setting.`,
         );
       result.push({
-        cakeProjPath: resolved,
-        dataPathOverride: rawDataPath,
-        cakeTargetOverride: rawTarget,
+        cakeProjPath: project,
+        dataPathOverride: dataPath,
+        cakeTargetOverride: target,
       });
     }
+    output.appendLine(`Projects resolved from settings: ${result}`);
     return result;
   }
 
@@ -153,7 +162,9 @@ async function resolveProjects(
     );
     return null;
   }
-  return detected.map((p) => ({ cakeProjPath: p }));
+  let result = detected.map((p) => ({ cakeProjPath: p }));
+  output.appendLine(`Projects resolved from settings: ${result}`);
+  return result;
 }
 
 /** If workspace provides us with VS path, ensure it is a valid one */
@@ -174,14 +185,6 @@ function resolveVsPath(
 
   output.appendLine(`[VinTest] cake.vsPath from settings: ${raw}`);
   return raw;
-}
-
-function resolveAcrossWorkspaceFolders(relative: string): string | undefined {
-  for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    const candidate = path.join(folder.uri.fsPath, relative);
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return undefined;
 }
 
 async function autoDetectAllCakeProjects(): Promise<string[]> {
