@@ -222,7 +222,10 @@ function buildArgs(
     args.push("--vs-path");
     args.push(wsConfig.cakeVsPath);
   }
-  if (wsConfig.cakeIgnoreLogErrors) args.push("--ignore-log-errors");
+  if (wsConfig.cakeIgnoreLogErrors) {
+    args.push("--ignore-log-errors");
+    args.push("true");
+  }
   if (debug) {
     args.push("--test-timeout");
     args.push("0");
