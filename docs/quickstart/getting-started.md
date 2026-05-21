@@ -53,7 +53,7 @@ Add a new C# project to your solution. By convention it is named `<YourMod>.game
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="VinTest" Version="0.0.0" /> <!-- (4)! -->
+    <PackageReference Include="VinTest" Version="0.1.0" /> <!-- (4)! -->
     <ProjectReference Include="../YourMod/YourMod.csproj"> <!-- (5)! -->
       <Private>false</Private> <!-- (6)! -->
     </ProjectReference>

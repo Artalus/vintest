@@ -32,7 +32,7 @@ Update your `CakeBuild.csproj` C# project to use the [`VinTest.Cake`](/vintest/a
 
   <ItemGroup>
     <PackageReference Include="Cake.Frosting" Version="6.1.0" />
-    <PackageReference Include="VinTest.Cake" Version="0.0.0" />
+    <PackageReference Include="VinTest.Cake" Version="0.1.0" />
   </ItemGroup>
 
   <ItemGroup>

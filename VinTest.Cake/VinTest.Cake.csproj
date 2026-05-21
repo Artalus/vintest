@@ -5,7 +5,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- NuGet package metadata -->
     <PackageId>VinTest.Cake</PackageId>
-    <Version>0.0.0</Version>
+    <Version>0.1.0</Version>
     <Description>Cake tasks for automating VintageStory mod game tests with VinTest.</Description>
     <PackageTags>VintageStory modding testing cake</PackageTags>
     <RepositoryType>git</RepositoryType>

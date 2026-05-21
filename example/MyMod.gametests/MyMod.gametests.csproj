@@ -24,7 +24,7 @@
     Usually you'd want to always get a pinned VinTest version from NuGet.
     But you can use a local copy via Directory.Build.targets file.
     -->
-    <PackageReference Include="VinTest" Version="0.0.0" />
+    <PackageReference Include="VinTest" Version="0.1.0" />
 
     <!-- Gametests need the main mod DLLs to be built - but they should not be copied, since
     the mod will already be loaded by VS itself. -->

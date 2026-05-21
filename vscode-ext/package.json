@@ -2,7 +2,7 @@
   "name": "vintest-adapter",
   "displayName": "VinTest Testing Adapter",
   "description": "Discovers and runs VinTest game tests via the VS Code Testing panel",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "publisher": "Artalus",
   "repository": {
     "type": "git",
