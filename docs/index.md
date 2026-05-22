@@ -5,7 +5,8 @@ hide:
 title: Home
 ---
 
-![](/vintest/img/demo.png){ align=right width=400 }
+<div class="home-columns" markdown>
+<div class="left" markdown>
 
 # VinTest
 
@@ -32,3 +33,13 @@ VinTest is split into three "layers":
 ______________________________________________________________________
 
 → [Quickstart](quickstart/getting-started.md) — add VinTest to an existing mod project step by step.
+
+</div>
+<div class="right" markdown>
+
+![](/vintest/img/demo.png)
+
+![](/vintest/img/demo-cli.png)
+
+</div>
+</div>
