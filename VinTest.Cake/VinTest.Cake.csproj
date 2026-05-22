@@ -9,7 +9,14 @@
     <Description>Cake tasks for automating VintageStory mod game tests with VinTest.</Description>
     <PackageTags>VintageStory modding testing cake</PackageTags>
     <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../LICENSE" Pack="true" PackagePath="" />
+    <None Include="../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Cake.Common" Version="6.1.0" />
