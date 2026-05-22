@@ -26,13 +26,13 @@ Update your `CakeBuild.csproj` C# project to use the [`VinTest.Cake`](/vintest/a
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RunWorkingDirectory>$(MSBuildProjectDirectory)</RunWorkingDirectory> <!-- (1)! -->
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Cake.Frosting" Version="6.1.0" />
-    <PackageReference Include="VinTest.Cake" Version="0.0.0" />
+    <PackageReference Include="VinTest.Cake" Version="0.1.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -131,7 +131,7 @@ dotnet run `
   --project ./CakeBuild `
   --target RunGameTests `
   -- `
-    --vs-path "D:/VintageStory/1.21.7" `
+    --vs-path "D:/VintageStory/1.22.2" `
     --data-path "../gamedata" `
     --test-world "autotest" `
     --manual-mode true
@@ -166,7 +166,7 @@ dotnet run `
   --project ./CakeBuild `
   --target RunGameTests `
   -- `
-    --vs-path "D:/VintageStory/1.21.7" `
+    --vs-path "D:/VintageStory/1.22.2" `
     --data-path "../gamedata" `
     --test-world "autotest" `
     # (1)!

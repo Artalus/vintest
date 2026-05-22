@@ -30,7 +30,7 @@ jobs:
     if: needs.changes.outputs.csharp == 'true'
     runs-on: ubuntu-latest
     env:
-      VS_VERSION: "1.21.7"
+      VS_VERSION: "1.22.2"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5

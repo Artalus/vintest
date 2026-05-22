@@ -1,0 +1,13 @@
+<Project>
+  <!--
+  This targets file is included when VinTest is consumed as a NuGet package.
+  It copies the VinTest.dll runtime to the output directory of projects that reference it.
+  -->
+  <Target Name="CopyVinTestDll" AfterTargets="Build">
+    <Copy
+      SourceFiles="$(MSBuildThisFileDirectory)..\lib\net10.0\VinTest.dll"
+      DestinationFolder="$(OutDir)"
+      SkipUnchangedFiles="true"
+    />
+  </Target>
+</Project>

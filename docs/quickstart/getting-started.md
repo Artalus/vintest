@@ -39,7 +39,7 @@ Add a new C# project to your solution. By convention it is named `<YourMod>.game
 ```xml title="YourMod.gametests/YourMod.gametests.csproj" linenums="1" hl_lines="9-21"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>bin\$(Configuration)\Mods\mod</OutputPath>
     <Nullable>enable</Nullable>
@@ -53,7 +53,7 @@ Add a new C# project to your solution. By convention it is named `<YourMod>.game
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="VinTest" Version="0.0.0" /> <!-- (4)! -->
+    <PackageReference Include="VinTest" Version="0.1.0" /> <!-- (4)! -->
     <ProjectReference Include="../YourMod/YourMod.csproj"> <!-- (5)! -->
       <Private>false</Private> <!-- (6)! -->
     </ProjectReference>

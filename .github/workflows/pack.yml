@@ -14,7 +14,7 @@ on:
       vs_version:
         description: "VintageStory version (for core/cake builds)"
         required: false
-        default: "1.21.7"
+        default: "1.22.2"
 
 jobs:
   pack:
