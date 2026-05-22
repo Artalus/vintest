@@ -12,7 +12,7 @@ public class MyModSystem : ModSystem
     {
         try
         {
-            if (PositionIsNearbyEnough(player.Entity.Pos.AsBlockPos, new BlockPos(0, 0, 0)))
+            if (!PositionIsNearbyEnough(player.Entity.Pos.AsBlockPos, new BlockPos(0, 0, 0)))
                 DoMagic();
         }
         catch (Exception ex)
