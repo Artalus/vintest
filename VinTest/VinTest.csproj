@@ -21,4 +21,9 @@
       <Private>false</Private>
     </Reference>
   </ItemGroup>
+
+  <!-- Ensure that our consumers will copy VinTest.dll to mod output -->
+  <ItemGroup>
+    <None Include="build\VinTest.targets" Pack="true" PackagePath="build\VinTest.targets" />
+  </ItemGroup>
 </Project>
