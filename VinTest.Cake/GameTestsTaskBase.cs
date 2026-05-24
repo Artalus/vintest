@@ -157,15 +157,13 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
     /// </summary>
     public sealed override void Run(TContext context)
     {
-        var vsExe = Path.Combine(context.VsPath, "VintageStory.exe");
-
         Cleanup(context);
         WriteVintestConfig(context);
         Prepare(context);
         Build(context);
         var proc = LaunchVintageStory(
             context,
-            vsExe,
+            context.VsExePath,
             GetModBinaryPaths(context),
             GetAssetsPaths(context)
         );
@@ -251,6 +249,8 @@ public abstract class GameTestsTaskBase<TContext> : FrostingTask<TContext>
         IEnumerable<string> assetsPaths
     )
     {
+        if (!File.Exists(vsExe))
+            throw new CakeException($"Vintage Story executable does not exist: {vsExe}");
         if (!modPaths.Any())
             throw new CakeException("No valid mod paths provided");
         var mods = ValidatePaths(modPaths, "MOD");
