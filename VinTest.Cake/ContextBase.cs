@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using Cake.Common;
 using Cake.Core;
@@ -85,6 +86,17 @@ public abstract class ContextBase : FrostingContext
     /// </summary>
     public string PidFilePath => Path.Combine(DataPath, TestResultsDirName, "vs.pid");
 
+    /// <summary>
+    /// Absolute path to VS executable (Vintagestory.exe on Windows, Vintagestory on Linux).
+    /// </summary>
+    public string VsExePath =>
+        Path.Combine(
+            VsPath,
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "Vintagestory.exe"
+                : "Vintagestory"
+        );
+
     /// <inheritdoc/>
     protected ContextBase(ICakeContext context)
         : base(context)
@@ -110,8 +122,23 @@ public abstract class ContextBase : FrostingContext
                     + " or set VINTAGE_STORY environment variable."
             );
         VsPath = Path.GetFullPath(vspathCandidate);
-        if (!File.Exists(Path.Combine(VsPath, "VintageStory.exe")))
-            throw new CakeException($"Vintage Story executable not found in {VsPath}");
+
+        // Check if VintagestoryAPI.dll exists
+        string dllPath = Path.Combine(VsPath, "VintagestoryAPI.dll");
+        if (!File.Exists(dllPath))
+            throw new CakeException(
+                $"{VsPath} does not look like a valid Vintage Story installation"
+                    + " (missing VintagestoryAPI.dll)."
+            );
+
+        if (!File.Exists(VsExePath))
+        {
+            Log.Warning(
+                $"WARNING: Vintage Story executable '{VsExePath}' not found."
+                    + "\nCake Will not be able to run tests!"
+            );
+            Log.Information("This is OK in CI environments building against a vs_server.tar.gz");
+        }
         DataPath = Path.GetFullPath(context.Argument("data-path", "../gamedata"));
         TestWorldName = context.Argument("test-world", "autotest");
         TestRunTimeoutSeconds = context.Argument("test-timeout", 300);
