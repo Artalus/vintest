@@ -1,6 +1,6 @@
 # VinTest — in-game testing framework for Vintage Story mods
 
-| ![Demo: code](/docs/img/demo.png) | [Demo: CLI](/docs/img/demo-cli.png) |
+| ![Demo: code](/docs/img/demo.png) | ![Demo: CLI](/docs/img/demo-cli.png) |
 | --- | --- |
 |Make a mod for your mod that will test your mod while you mod it.||
 
