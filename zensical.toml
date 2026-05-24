@@ -36,6 +36,9 @@ nav = [
         ] },
     ] },
 ]
+
+extra_css = ["stylesheets/extra.css"]
+
 [project.theme]
 variant = "classic"
 
